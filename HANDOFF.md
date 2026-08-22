@@ -1095,11 +1095,16 @@ https://vibebox.goose-marlin.ts.net:8443/
 - **Do not touch `tailscale serve --https=443`.** It is the user's Harness Asset
   Manager on `127.0.0.1:8000`. AO's `Serve.Apply` hardcodes `:443` and would
   clobber it — this is why `securePairing` stays off.
-- **`tailscale serve --https=8443` may still be active** from the 2026-08-22
-  measurement session, pointed at a now-dead probe on `:9099`. Check
-  `tailscale serve status` and either turn it off or repoint it at `:3011`.
-- Go 1.22 is on PATH but `go.mod` needs 1.25+; the toolchain auto-downloads
-  `go1.26.7` on first build. That first `go build ./...` is slow, not broken.
+- **`tailscale serve --https=8443` is OFF** — the operator turned it off on
+  2026-08-22 after the measurement session (it had been pointed at a now-dead
+  probe on `:9099`). `tailscale serve status` now shows only
+  `:443 → http://127.0.0.1:8000`, which is correct. At **G4**, a human re-applies
+  `tailscale serve --bg --https=8443 http://127.0.0.1:3011` — agents cannot.
+- The installed Go is **`go1.25.7`** and `go build ./...` passes on it in
+  seconds, so §4's "resolves go1.26.7 automatically" and the "first build is
+  slow" warning are both wrong for `go build`. `golangci-lint` v2.12.2 *does*
+  pull `go1.26.7` on first run (`npm run lint`), and that step is genuinely slow
+  once.
 - `go1.23` is **not** available as a downloadable toolchain here — pin
   `GOTOOLCHAIN=go1.26.7` if you scaffold a throwaway module.
 - This repo is **not** an npm workspace. Install per package with `npm --prefix`.
