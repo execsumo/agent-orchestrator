@@ -748,6 +748,17 @@ observed behavior. Record results in this file as you pass them.
     is believed.** Passing alone means contention, not a bug.
   - Same applies to Go: `go test -race ./...` and the tmux integration tests are
     timing-sensitive. Verify W1's Go suite with the box quiet.
+  - **Exception — a delegate that ADDS an e2e spec must be allowed to run that one
+    spec** (`npx playwright test <file> --grep '<tag>' --workers=1`). The blanket
+    no-Playwright rule as first written made it impossible for a delegate to
+    verify a test it was writing, and W4 duly shipped an `@ORC` spec whose
+    fixture seeded `fake-proj` while the assertion expected `ao-demo`. One spec,
+    one worker, and only for a spec the delegate itself added.
+  - **A wholesale e2e failure is infrastructure, not code.** All 25 failing
+    identically means the dev server never came up — check for a stale `vite`
+    process (`ps aux | grep vite`) and for a warm-cache/startup timeout, since the
+    shared symlinked `node_modules` means every worktree shares one `.vite` cache
+    and re-optimizes when another worktree's config differs.
 
 - **G1 Daemon.** ✅ **PASSED 2026-08-22.** `ao daemon` runs; `/healthz` and
   `/readyz` answer on loopback; it survives a kill-and-restart with state intact.
