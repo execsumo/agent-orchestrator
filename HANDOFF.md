@@ -680,6 +680,28 @@ observed behavior. Record results in this file as you pass them.
   install is sufficient for `build:web`. (Verified — do not lose an hour to the
   "failed to resolve clsx" symptom the config comment warns about; that is a
   missing `npm install`, not a missing product-ui build.)
+- **G0b Verification integrity under parallel agents.** ⚠️ **Learned the hard way
+  2026-08-22 — read this before running any gate with delegates active.**
+  This box has **4 cores**. With four coding agents working, load average was
+  measured at **30–70**, and under that contention `vitest` and Playwright fail
+  with **timeouts that are pure artifacts, not bugs**. A full renderer run
+  reported 7 failures across `Sidebar.test.tsx` and `GlobalSettingsForm.test.tsx`;
+  re-run alone, those same files passed **61/61** and **28/28**.
+
+  The danger is not the wasted run — it is that an agent handed a phantom failure
+  will "fix" working code, or loosen a timeout, to make it go away.
+
+  Rules:
+  - The **full renderer vitest** and **`test:e2e:renderer`** are **orchestrator-only
+    and serialized**. Never put them in a delegate's DoD. Four concurrent chromium
+    suites is the worst offender.
+  - A delegate's DoD gets `frontend:typecheck` plus **vitest scoped to the test
+    files it touched** — enough to prove it did not break its own work.
+  - **Any timeout failure must be re-run as a single file in isolation before it
+    is believed.** Passing alone means contention, not a bug.
+  - Same applies to Go: `go test -race ./...` and the tmux integration tests are
+    timing-sensitive. Verify W1's Go suite with the box quiet.
+
 - **G1 Daemon.** `ao daemon` runs; `/healthz` and `/readyz` answer on loopback;
   it survives a kill-and-restart with state intact.
 - **G2 One real agent.** A worker spawned by AO in this container completes a
