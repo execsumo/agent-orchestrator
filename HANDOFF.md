@@ -1005,6 +1005,29 @@ each**, via the `delegate` skill. Reproduce it like this:
 - **A wholesale e2e failure is infrastructure, not code.** All 25 failing the
   same way means the dev server never came up; one failing means a real bug.
 
+### 11.1e i18n: English-only, but keep the upstream gate
+
+**Operator decision 2026-08-22: only English is needed.** That does **not** mean
+skipping i18n, and here is why — all three frontend workstreams independently
+tripped this, so it is worth stating once:
+
+- `frontend/src/renderer/i18n/renderer-coverage.test.ts` is a **pre-existing
+  upstream test** (it exists at the fork point `11c1b5cae`), and upstream ships
+  **8 locale catalogs** with active work on them. Weakening or skipping it breaks
+  an upstream gate and forfeits the upstreamability that §1 lists as an explicit
+  constraint.
+- It runs inside the full renderer vitest suite, which is the orchestrator's main
+  verification gate. Disabling it makes every later run green-with-an-asterisk.
+
+**So the rule is:** user-facing copy goes into the catalog and renders via `t()`.
+**Do not spend any effort translating** — add the English string and let the other
+seven locales fall back, which is the normal upstream pattern. The cost is a
+catalog entry, not a translation project.
+
+If you are writing a spec for any renderer workstream, **say this up front.**
+W2, W3 and W4 each shipped hardcoded English and each needed a correction round
+for it; naming the requirement in the spec would have avoided all three.
+
 ### 11.2 Decided — do not relitigate
 
 Each of these was reached from evidence in the code, and reversing one invalidates
