@@ -240,6 +240,17 @@ describe("TerminalPane empty states", () => {
 		}
 	});
 
+	it("keeps a Chat worker target on the live pane path", () => {
+		previewMode.enabled = true;
+		const view = renderPane({ ...worker, mode: "chat", terminalHandleId: "term-1" });
+		try {
+			expect(screen.getByTestId("xterm")).toBeInTheDocument();
+			expect(screen.queryByText("PASS 18 tests passed")).not.toBeInTheDocument();
+		} finally {
+			view.restore();
+		}
+	});
+
 	it("mounts a live terminal when terminal capability is available without Electron", () => {
 		const previousAO = window.ao;
 		window.ao = undefined;

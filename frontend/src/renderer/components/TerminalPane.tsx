@@ -669,7 +669,11 @@ export function TerminalPane({
 			? terminalTarget.handleId
 			: (session?.terminalHandleId ?? "empty");
 
-	if (usesPreviewWorkspaceData) {
+	// A worker target in Chat mode belongs to SessionChatSurface, not the PTY
+	// terminal. Auxiliary shell/reviewer targets remain terminal panes even when
+	// they were opened from a Chat session.
+	const isChatWorkerTarget = terminalTarget.kind === "worker" && session?.mode === "chat";
+	if (usesPreviewWorkspaceData && !isChatWorkerTarget) {
 		// A standalone shell has no agent and no branch, so it previews as a plain
 		// prompt rather than borrowing the session's agent transcript.
 		if (terminalTarget?.kind === "shell") {
