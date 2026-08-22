@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CreateProjectFlow, type CloneProjectInput, type CreateProjectInput } from "./CreateProjectFlow";
+import { aoBridge } from "../lib/bridge";
 
 const bridgeMocks = vi.hoisted(() => ({
 	checkAncestorRepo: vi.fn(),
@@ -11,6 +12,7 @@ const bridgeMocks = vi.hoisted(() => ({
 
 vi.mock("../lib/bridge", () => ({
 	aoBridge: {
+		capabilities: { nativeFileDialogs: true },
 		app: {
 			checkAncestorRepo: bridgeMocks.checkAncestorRepo,
 			chooseDirectory: bridgeMocks.chooseDirectory,
@@ -27,11 +29,17 @@ vi.mock("./CreateProjectAgentSheet", () => ({
 		kind,
 		open,
 		path,
+		onSubmit,
 	}: {
 		kind: string;
 		open: boolean;
 		path: string | null;
-	}) => (open ? <div data-kind={kind} data-path={path ?? ""} data-testid="agent-sheet" /> : null),
+		onSubmit: (selection: any) => Promise<void>;
+	}) => (open ? (
+		<div data-kind={kind} data-path={path ?? ""} data-testid="agent-sheet">
+			<button onClick={() => onSubmit({ role: "developer" })}>Start</button>
+		</div>
+	) : null),
 }));
 
 // Probe stand-in: the real dialog needs its own form state and validation.
@@ -65,6 +73,7 @@ const noop = {
 };
 
 beforeEach(() => {
+	if (aoBridge.capabilities) (aoBridge.capabilities as any).nativeFileDialogs = true;
 	bridgeMocks.checkAncestorRepo.mockReset().mockResolvedValue(undefined);
 	bridgeMocks.chooseDirectory.mockReset();
 	bridgeMocks.scanImportFolder.mockReset().mockImplementation(async ({ path }: { path: string }) => okScan(path));
@@ -158,5 +167,60 @@ describe("CreateProjectFlow droppedPath", () => {
 		expect(screen.getByTestId("clone-dialog")).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Open local repository" })).not.toBeInTheDocument();
 		expect(bridgeMocks.chooseDirectory).not.toHaveBeenCalled();
+	});
+});
+
+describe("CreateProjectFlow web fallback mode", () => {
+	it("shows path field instead of choose button when nativeFileDialogs is false", async () => {
+		(aoBridge.capabilities as any).nativeFileDialogs = false;
+		const { rerender } = render(<CreateProjectFlow mode="single_repo" {...noop} openSignal={0} />);
+		rerender(<CreateProjectFlow mode="single_repo" {...noop} openSignal={1} />);
+
+		expect(screen.queryByRole("button", { name: "Choose Folder" })).not.toBeInTheDocument();
+		try {
+			expect(await screen.findByRole("textbox", { name: "Project absolute path" })).toBeInTheDocument();
+		} catch (e) {
+			screen.debug();
+			throw e;
+		}
+	});
+
+	it("skips preflight and relies on daemon validation", async () => {
+		(aoBridge.capabilities as any).nativeFileDialogs = false;
+		const user = userEvent.setup();
+		const { rerender } = render(<CreateProjectFlow mode="single_repo" {...noop} openSignal={0} />);
+		rerender(<CreateProjectFlow mode="single_repo" {...noop} openSignal={1} />);
+
+		const input = await screen.findByRole("textbox", { name: "Project absolute path" });
+		await user.type(input, "/fake/path{enter}");
+
+		expect(bridgeMocks.chooseDirectory).not.toHaveBeenCalled();
+		expect(bridgeMocks.scanImportFolder).not.toHaveBeenCalled();
+		
+		const sheet = await screen.findByTestId("agent-sheet");
+		expect(sheet).toHaveAttribute("data-path", "/fake/path");
+	});
+
+	it("surfaces server-side validation error with request id", async () => {
+		(aoBridge.capabilities as any).nativeFileDialogs = false;
+		const user = userEvent.setup();
+		
+		const err = new Error("Path does not exist");
+		(err as any).requestId = "req-123";
+		const mockCreate = vi.fn().mockRejectedValue(err);
+
+		const { rerender } = render(<CreateProjectFlow mode="single_repo" {...noop} onCreateProject={mockCreate} openSignal={0} />);
+		rerender(<CreateProjectFlow mode="single_repo" {...noop} onCreateProject={mockCreate} openSignal={1} />);
+
+		const input = await screen.findByRole("textbox", { name: "Project absolute path" });
+		await user.type(input, "/fake/path{enter}");
+		
+		// The agent sheet should mount because selectedPath is set
+		const startBtn = await screen.findByRole("button", { name: "Start" });
+		await user.click(startBtn);
+
+		await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+		
+		expect(await screen.findByText("Path does not exist (Request ID: req-123)")).toBeInTheDocument();
 	});
 });

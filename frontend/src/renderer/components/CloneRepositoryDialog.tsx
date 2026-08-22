@@ -169,21 +169,28 @@ export default function CloneRepositoryDialog({
 											id="cloneDestination"
 											aria-describedby={destinationError ? "cloneDestinationError" : undefined}
 											aria-invalid={destinationError ? true : undefined}
-											className="cursor-default bg-[var(--color-bg-import-card)] pl-10 font-mono text-[13px]"
+											className="bg-[var(--color-bg-import-card)] pl-10 font-mono text-[13px]"
 											placeholder={t("createProject.cloneDestinationPlaceholder")}
-											readOnly
+											readOnly={aoBridge.capabilities.nativeFileDialogs}
 											value={value.destinationParent}
+											onChange={(e) => {
+												if (!aoBridge.capabilities.nativeFileDialogs) {
+													onChange({ ...value, destinationParent: e.target.value });
+												}
+											}}
 										/>
 									</div>
-									<Button
-										type="button"
-										variant="footer"
-										className="h-control-form! px-4"
-										disabled={disabled || choosingDestination}
-										onClick={() => void chooseDestination()}
-									>
-										{choosingDestination ? t("createProject.opening") : t("createProject.cloneChoose")}
-									</Button>
+									{aoBridge.capabilities.nativeFileDialogs && (
+										<Button
+											type="button"
+											variant="footer"
+											className="h-control-form! px-4"
+											disabled={disabled || choosingDestination}
+											onClick={() => void chooseDestination()}
+										>
+											{choosingDestination ? t("createProject.opening") : t("createProject.cloneChoose")}
+										</Button>
+									)}
 								</div>
 								{destinationError ? (
 									<p id="cloneDestinationError" className="text-pretty text-[12px] leading-5 text-destructive" role="alert">
