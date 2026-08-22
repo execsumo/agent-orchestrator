@@ -25,6 +25,7 @@ const {
 	terminalState,
 	replaySettled,
 	terminalSessionOptions,
+	previewMode,
 	xtermMounts,
 	xtermUnmounts,
 } = vi.hoisted(
@@ -37,11 +38,18 @@ const {
 		terminalState: { value: "idle" },
 		replaySettled: { value: true },
 		terminalSessionOptions: [] as Array<{ coverInitialReplay?: boolean }>,
+		previewMode: { enabled: false },
 		xtermMounts: { value: 0 },
 		xtermUnmounts: { value: 0 },
 	}),
 );
 let terminalLinkHandler: ((uri: string) => void) | undefined;
+
+vi.mock("../lib/preview-mode", () => ({
+	get usesPreviewWorkspaceData() {
+		return previewMode.enabled;
+	},
+}));
 
 vi.mock("../lib/api-client", () => ({
 	apiClient: {
@@ -129,6 +137,7 @@ beforeEach(() => {
 	replaySettled.value = true;
 	terminalLinkHandler = undefined;
 	terminalSessionOptions.length = 0;
+	previewMode.enabled = false;
 	attachMock.mockClear();
 	prepareForActivationMock.mockReset();
 	prepareForActivationMock.mockResolvedValue(undefined);
@@ -219,6 +228,18 @@ function activeXterm(): HTMLElement {
 }
 
 describe("TerminalPane empty states", () => {
+	it("renders the canned transcript in preview mode even when live terminals are supported", () => {
+		previewMode.enabled = true;
+		const view = renderPane({ ...worker, id: "demo-working", terminalHandleId: "term-1" });
+		try {
+			expect(aoBridge.capabilities.terminals).toBe(true);
+			expect(screen.getByText("PASS 18 tests passed")).toBeInTheDocument();
+			expect(screen.queryByTestId("xterm")).not.toBeInTheDocument();
+		} finally {
+			view.restore();
+		}
+	});
+
 	it("mounts a live terminal when terminal capability is available without Electron", () => {
 		const previousAO = window.ao;
 		window.ao = undefined;
