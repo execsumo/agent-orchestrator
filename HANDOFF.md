@@ -702,8 +702,16 @@ observed behavior. Record results in this file as you pass them.
   - Same applies to Go: `go test -race ./...` and the tmux integration tests are
     timing-sensitive. Verify W1's Go suite with the box quiet.
 
-- **G1 Daemon.** `ao daemon` runs; `/healthz` and `/readyz` answer on loopback;
-  it survives a kill-and-restart with state intact.
+- **G1 Daemon.** ✅ **PASSED 2026-08-22.** `ao daemon` runs; `/healthz` and
+  `/readyz` answer on loopback; it survives a kill-and-restart with state intact.
+  Built with `go build -o <path>/ao ./cmd/ao` (the CLI entrypoint is
+  `backend/cmd/ao`). Observed: `daemon listening addr=127.0.0.1:3001`, both
+  probes `200`, and after `kill` + restart both probes `200` again with
+  `~/.ao/data/ao.db` and `worktrees/` intact. `~/.ao` is created correctly (
+  `data/`, `running.json`, `supervise.sock`, `browser.sock`) — no OS-default
+  app-data path is touched, satisfying the CLAUDE.md hard rule.
+  Two benign startup warnings, unrelated to this goal: the GitHub and GitLab
+  trackers disable themselves with "no token configured".
 - **G2 One real agent.** A worker spawned by AO in this container completes a
   small real task on a scratch repo. Not mocked.
 - **G3 Web UI on loopback.** A browser at `http://127.0.0.1:3001` renders **live**
