@@ -772,8 +772,36 @@ observed behavior. Record results in this file as you pass them.
   trackers disable themselves with "no token configured".
 - **G2 One real agent.** A worker spawned by AO in this container completes a
   small real task on a scratch repo. Not mocked.
-- **G3 Web UI on loopback.** A browser at `http://127.0.0.1:3001` renders **live**
-  data (not `mockWorkspaces`), and a terminal **streams live PTY output**.
+- **G3 Web UI on loopback.** ✅ **PASSED 2026-08-22.** A browser at
+  `http://127.0.0.1:3001` renders **live** data (not `mockWorkspaces`), and a
+  terminal **streams live PTY output**.
+
+  Reproduce: `cd frontend && npm run build:web`, then **rebuild the binary** so
+  `go:embed` picks up the new `dist` (`go build -o <path>/ao ./cmd/ao`), restart
+  the daemon, and drive a real browser at it (Playwright's chromium is already
+  installed — `frontend/node_modules/playwright`).
+
+  Observed, with **no Electron present**:
+  - The SPA and its ~1.5 MB JS asset are served from the daemon on loopback.
+  - The app mounts with **zero page errors and zero console errors**.
+  - It issues **real** API calls — `/api/v1/projects`, `/sessions`, `/agents`,
+    `/events`, and the `/api/v1/notifications/stream` SSE — and **none** of the
+    `mock-data.ts` fingerprints (`ao-demo`, `reverbcode`, `demo-working`,
+    `PASS 18 tests passed`) appear anywhere in the DOM.
+  - W4's orchestrator surface renders live: a permanent sidebar entry reading
+    `Orchestrator / Missing`, and the destination view offering `Spawn
+    Orchestrator` rather than a dead button.
+  - W2's daemon readiness renders as `daemon ready`, sourced from `/healthz`.
+  - **The terminal is real.** The browser opened `ws://127.0.0.1:3001/mux`, sent
+    `{"ch":"terminal","type":"open",...}`, and received `opened` followed by
+    streaming `data` frames. One decodes to
+    `\x1b[32m\x1b[Hdev@vibebox\x1b[39m:` — an ANSI-coloured shell prompt from a
+    live PTY. This is the exact thing that was a **static fake terminal** before
+    W2 (`TerminalPane.tsx`'s old `if (!window.ao)` early return).
+
+  A standalone shell terminal is the cheapest way to exercise a real PTY without
+  spawning an agent: `POST /api/v1/shell-terminals` returns a `handleId` the
+  renderer will attach to.
 - **G4 Tailnet.** Bridge enabled, bound `127.0.0.1`, strict port on,
   `tailscale serve --https=8443` configured; from a **different tailnet device**:
   URL → board → live terminal → chat. With identity trust on (§5.7) there should
