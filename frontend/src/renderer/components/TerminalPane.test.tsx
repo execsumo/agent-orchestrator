@@ -9,6 +9,7 @@ import type { AttachableTerminal } from "../hooks/useTerminalSession";
 import type { TerminalTarget } from "../types/terminal";
 import type { WorkspaceSession } from "../types/workspace";
 import { useUiStore } from "../stores/ui-store";
+import { aoBridge } from "../lib/bridge";
 import {
 	TerminalCacheProvider,
 	TerminalPane,
@@ -218,6 +219,29 @@ function activeXterm(): HTMLElement {
 }
 
 describe("TerminalPane empty states", () => {
+	it("mounts a live terminal when terminal capability is available without Electron", () => {
+		const previousAO = window.ao;
+		window.ao = undefined;
+		try {
+			render(
+				<QueryClientProvider client={new QueryClient()}>
+					<TerminalPane
+						daemonReady
+						fontSize={12}
+						session={{ ...worker, terminalHandleId: "term-1" }}
+						theme="dark"
+					/>
+				</QueryClientProvider>,
+			);
+
+			expect(aoBridge.capabilities.terminals).toBe(true);
+			expect(screen.getByTestId("xterm")).toBeInTheDocument();
+			expect(screen.queryByText(/demo terminal/i)).not.toBeInTheDocument();
+		} finally {
+			window.ao = previousAO;
+		}
+	});
+
 	it("uses the full top, right, and bottom extent for the terminal grid", () => {
 		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
 		try {
