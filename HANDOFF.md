@@ -744,6 +744,21 @@ W1–W5 run fully in parallel once W0 lands. The only shared-file hazards are
 - **`openapi.yaml` + `frontend/src/api/schema.ts` belong to W1 alone.** No other
   workstream regenerates or edits them.
 
+**Ownership gaps found once the fan-out was actually running (resolved):**
+
+- **`ShellSidebar.tsx` does not exist.** §6 W4 names it, but the real file is
+  `frontend/src/renderer/components/Sidebar.tsx` (+ `Sidebar.test.tsx`). **W4
+  owns those.** There is no `ShellSidebar.tsx` to create — do not create one.
+- **The daemon-status UI was unowned.** W2's "no dead start/stop button"
+  requirement needs `components/{DaemonFailureBanner,DaemonStartupLoader}.tsx`,
+  `hooks/useDaemonStatus.ts`, and `lib/daemon-status.ts`, none of which §6
+  assigns to anyone. **W2 owns them** (plus `SessionsBoard.tsx` if readiness
+  gating requires it).
+  **The trap:** `routes/_shell.tsx` is what *renders* those two components, and
+  it belongs to W4. So daemon-control gating must happen **inside the components**
+  (they can read `aoBridge.capabilities.daemonControl` directly), **never at the
+  route level**. Gating in `_shell.tsx` puts W2 and W4 in the same file.
+
 ---
 
 ## 9. Known limitations (document; do not silently fix)
@@ -935,8 +950,18 @@ https://vibebox.goose-marlin.ts.net:8443/
 
 ### 11.7 Open items needing a human
 
-- Turn the `:8443` probe serve off (or repoint it) — agents cannot run
-  `tailscale serve`.
-- Decide whether `AO_CONNECT_ALLOWED_LOGINS` is just `execsumo@github` or wider.
+- ~~Turn the `:8443` probe serve off (or repoint it)~~ — **decided 2026-08-22:
+  turn it OFF now**, and re-apply it at G4 once a daemon is actually listening on
+  `3011`. Agents cannot run `tailscale serve`, so the operator runs:
+
+  ```bash
+  tailscale serve --https=8443 off
+  tailscale serve status   # confirm :443 → http://127.0.0.1:8000 is untouched
+  ```
+
+- ~~Decide whether `AO_CONNECT_ALLOWED_LOGINS` is just `execsumo@github` or
+  wider.~~ — **decided 2026-08-22: `execsumo@github`** (single operator). An empty
+  allowlist still means deny-everyone, and "any tailnet user" is still forbidden
+  as a default (§5.7).
 - Gates G2, G4, G5, G6 need a real repo, a real agent run, and a second tailnet
   device.
