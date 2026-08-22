@@ -1,12 +1,17 @@
 # Agent Orchestrator: Tailnet Web Supervision
 
-**Status:** plan hardened against the real codebase on 2026-08-22. Supersedes the
-first draft of this file, whose "Current baseline" was materially incomplete.
-No implementation has started.
+**Status:** **implementation in progress.** Plan hardened against the real
+codebase 2026-08-22; W0, W5, W1 and W2 are merged, W3 and W4 are built and
+awaiting verification, W6 has not started. Gates G0, G0b and G1 pass.
 
-**Starting fresh with no context? Read [§11](#11-resuming-in-a-fresh-session)
-first**, then §2 (what upstream already ships) and §3 (the architecture and what
-was rejected).
+**Starting fresh with no context? Read [§11.1](#111-what-exists-right-now)
+first** — it is the current state of the world, including what is merged, what
+is running, and exactly what to do next. Then read §2 (what upstream already
+ships) and §3 (the architecture and what was rejected).
+
+⚠️ **Before running any test suite, read [§7 G0b](#7-verification-gates).** This
+box has 4 cores; under parallel agents the suites produce **false** timeout
+failures, and "fixing" one corrupts working code.
 
 ---
 
@@ -337,6 +342,11 @@ another workstream owns; if you must, say so in the PR and coordinate.
 
 ### W0 — Freeze the bridge contract (BLOCKING; land first, alone)
 
+> ✅ **MERGED `ecc655d3f`.** Electron-absence is detected at runtime via
+> `window.ao === undefined` rather than by reading `VITE_NO_ELECTRON`, so that
+> flag is now vestigial (`dev:web` still sets it; nothing reads it). Build
+> output is git-ignored, not committed.
+
 Everything else depends on this type existing. Keep it small and merge it fast.
 
 **Owns:** `frontend/src/preload.ts` (type + literal only),
@@ -410,6 +420,14 @@ all pass, and `dev:web` behaves exactly as before.
 ---
 
 ### W1 — Backend: web session auth + static serving (Go)
+
+> ✅ **MERGED `a9137eed0`.** All 11 mandatory tests exist and are real (verified
+> by reading them, not by trusting green). Routes were threaded through
+> `server.go` — **`NewWithDeps` gained a `ControlDeps.WebSession`** — because the
+> SPA must also be served on the **loopback** listener for G3; a LAN-listener-only
+> wrapper would have silently dropped that gate. Confirmed live: a daemon built
+> from this branch serves the embedded SPA at `/` on loopback and answers
+> `/api/v1/web/session`.
 
 **Owns:** new `backend/internal/httpd/webui/`, new `backend/internal/websession/`,
 `backend/internal/httpd/{auth.go,terminal_mux.go,router.go,lan_listener.go}`,
@@ -485,6 +503,14 @@ prefix.
 
 ### W2 — Frontend: capability refactor
 
+> ✅ **MERGED `f4eb632a9`.** Also owns the daemon-status UI (see the ownership
+> fixes above). **Key correction, do not undo it:** `TerminalPane` branches on
+> **preview-data mode BEFORE capability**, and the preview branch is narrowed to
+> non-chat worker targets. The e2e fake bridge sets `terminals: true`, so gating
+> the fake transcript on capability alone opens a real `/mux` socket with no
+> daemon behind it; and gating it on preview-mode alone swallows the chat
+> surface. Both were caught only by the full e2e suite.
+
 **Owns:** `frontend/src/renderer/components/{BrowserPanel,TerminalPane,WindowTitlebar,SessionView,InstallDependencyDialog}.tsx`,
 `frontend/src/renderer/hooks/useBrowserView.ts`, `frontend/src/renderer/main.tsx`.
 
@@ -512,6 +538,13 @@ shows a streaming terminal with no Electron present.
 
 ### W3 — Project creation without native dialogs
 
+> ⏳ **BUILT, AWAITING VERIFICATION** — branch `delegate/w3` @ `c4b4de20a`.
+> **Verify this one carefully.** Its first attempt reported done with a green
+> suite while having dropped most of its scope (no tests, no typed-path field,
+> `projectRepositoryPreflight` and `scanImportFolder` still unconditional).
+> Merging it will conflict with W2 in `frontend/e2e/support/fake-bridge.ts` —
+> both added the same `capabilities` record; keep one copy.
+
 **Owns:** `frontend/src/renderer/components/{CreateProjectFlow,CloneRepositoryDialog}.tsx`.
 
 Today the only ways in are `aoBridge.app.chooseDirectory` (an Electron dialog)
@@ -536,6 +569,13 @@ and by typing a path, with clear errors on both.
 ---
 
 ### W4 — Orchestrator as a core surface
+
+> ⏳ **BUILT, AWAITING VERIFICATION** — branch `delegate/w4` @ `08247989f`.
+> Adds `routes/_shell.projects.$projectId_.orchestrator.tsx`,
+> `lib/orchestrator-state.ts` (ported from `packages/mobile`, with tests), and a
+> permanent sidebar entry. It also adds **one new `@ORC` test** to the shared
+> `frontend/e2e/smoke-t0.spec.ts`; it reports no existing assertion was changed —
+> confirm that when you review the diff.
 
 **Owns:** `frontend/src/renderer/routes/*`, `frontend/src/renderer/components/{ShellSidebar,ShellTopbar}.tsx`,
 new `frontend/src/renderer/lib/orchestrator-state.ts`,
@@ -577,6 +617,13 @@ it created.
 ---
 
 ### W5 — Deployment and documentation (fork-local; never upstreamed)
+
+> ✅ **MERGED `a3d1ace0c`.** Ships `deploy/ao-daemon.service` (+ `.env.example`
+> with the allowlist commented out, so the default stays deny-everyone),
+> `docs/adr/0003-web-ui-on-the-lan-listener.md`, `docs/tailscale-runbook.md`,
+> `docs/operations-runbook.md`, `docs/limitations.md`. The unit's
+> `ExecStartPost` re-applies the serve target from the port `ao connect status`
+> reports, covering the reconciliation gap left by `securePairing` being off.
 
 **Owns:** new `deploy/`, `docs/adr/0003-web-ui-on-the-lan-listener.md`, this file.
 
@@ -838,40 +885,125 @@ of **2026-08-22**.
 
 ### 11.1 What exists right now
 
-- **G0 has passed** (§7) and **W0 is in progress**; W1–W6 have not started.
+**State as of 2026-08-22, late session.** Four of six workstreams are merged.
+
 - Branch `docs/tailnet-webui-handoff`, forked from `main` at `11c1b5cae`.
-- **The tree is now installed.** `node_modules` exists at the repo root,
-  `frontend/`, and `packages/product-ui/`; Playwright's chromium is downloaded.
-  `~/.ao` still does **not** exist — no daemon has been run.
-- **Delegate worktrees** live at `../agent-orchestrator-worktrees/<slug>` on
-  branches `delegate/<slug>`. Because git worktrees do not share `node_modules`
-  and this repo needs three separate installs, each worktree gets **symlinked**
-  `node_modules` at all three locations, and **delegates are forbidden from
-  running `npm install`** (it would write through the symlink into the shared
-  tree). `.delegate/` and the symlinks are hidden via `.git/info/exclude` — note
-  that `.gitignore`'s `node_modules/` pattern has a trailing slash and therefore
-  does **not** match a symlink, and that git reads the **common** gitdir's
-  `info/exclude`, not the per-worktree one.
-- `git branch -D` is permission-gated in this environment. Recycle a delegate
-  branch with `git worktree add -B <branch>` instead of deleting it.
+  Integration head at the time of writing: `f4eb632a9`.
 - Remotes: `origin` = `execsumo/agent-orchestrator` (this fork),
-  `upstream` = `Untrivial-ai/agent-orchestrator`.
+  `upstream` = `Untrivial-ai/agent-orchestrator`. **Nothing has been pushed.**
 
-**Your first three moves**, in order:
+| Workstream | State | Merge commit |
+| --- | --- | --- |
+| **W0** bridge capability contract | ✅ merged | `ecc655d3f` |
+| **W5** deploy, ADR-0003, runbooks | ✅ merged | `a3d1ace0c` |
+| **W1** backend auth + static serving | ✅ merged | `a9137eed0` |
+| **W2** capability refactor | ✅ merged | `f4eb632a9` |
+| **W3** project creation without dialogs | ⏳ committed, **awaiting my verification** | branch `delegate/w3` @ `c4b4de20a` |
+| **W4** orchestrator surface | ⏳ committed, **awaiting my verification** | branch `delegate/w4` @ `08247989f` |
+| **W6** remote directory picker | not started (W1 has merged, so it is now unblocked) | — |
 
-1. Run **G0** (§7) — root and `frontend/` installs, backend build and tests,
-   lint, typecheck. Expect the first `go build` to be slow while it fetches the
-   `go1.26.7` toolchain. This establishes that the tree is healthy before anyone
-   changes it.
-2. Land **W0** alone (§6). It is small, it is the frozen contract every other
-   workstream compiles against, and its acceptance test is that
-   `npm run test:e2e:renderer` still passes. Do not start W1–W5 until it merges.
-3. Then fan out W1–W5 in parallel. Assign by the file-ownership lists — they do
-   not overlap. W6 waits for W1.
+**Gates:** G0 ✅, G0b ✅ (new, see §7), G1 ✅. G2–G8 not yet run.
 
-Gates G1 and G2 (daemon runs, one real agent completes a real task) can be run
-at any time and are worth doing early: they are pure environment validation and
-need no code from this plan.
+### 11.1a Environment state (differs from a clean checkout)
+
+- **Installed.** `node_modules` at the repo root, `frontend/`, **and**
+  `packages/product-ui/`. Playwright chromium downloaded. See G0's four
+  prerequisites in §7 — a clean checkout does **not** pass G0 without them.
+- **A tmux server is running** (`tmux new-session -d -s g0probe`). `go test ./...`
+  and `npm run lint` fail without one.
+- **A daemon is running on `127.0.0.1:3001`**, started from a binary built with
+  `go build -o <tmp>/bin/ao ./cmd/ao`. `~/.ao` exists and holds real state
+  (`data/ao.db`, `worktrees/`). If you need port 3001, stop it first.
+- **`tailscale serve --https=8443` is OFF** (operator turned it off 2026-08-22).
+  `:443 → http://127.0.0.1:8000` (Harness Asset Manager) is **untouched and
+  off-limits**. Re-apply `:8443 → 127.0.0.1:3011` only at G4, and only a human
+  can run it.
+- A scratch repo for G2 exists at `/home/dev/projects/ao-g2-scratch` (git-init'd,
+  otherwise empty).
+- `frontend/package-lock.json` has a benign uncommitted 2-line change (it gained
+  `motion`, reconciling with `packages/product-ui`'s package.json during install).
+  `git checkout` of it is permission-gated here; leave it out of merges.
+
+### 11.1b Delegate infrastructure (how the fan-out is actually run)
+
+Work is delegated to coding agents in sibling **herdr** panes, one **git worktree
+each**, via the `delegate` skill. Reproduce it like this:
+
+- Worktrees at `../agent-orchestrator-worktrees/<slug>` on branches
+  `delegate/<slug>`. All six still exist; `git worktree list` shows them.
+- **`node_modules` is symlinked into each worktree** at all three install
+  locations, because git worktrees do not share them and this repo is not an npm
+  workspace. **Delegates are forbidden from running `npm install`** — it writes
+  through the symlink into the shared tree.
+- Two gotchas that cost time: `.gitignore`'s `node_modules/` pattern has a
+  **trailing slash** and therefore does **not** match a symlink, and git reads the
+  **common** gitdir's `info/exclude`, not the per-worktree one. Both are handled
+  by adding the patterns to `.git/info/exclude`.
+- `git branch -D` is **permission-gated** in this environment. Recycle a delegate
+  branch with `git worktree add -B <branch>` rather than deleting it.
+- Each worktree has a `.delegate/` dir (git-excluded) holding `spec.md`, the
+  `notify` reverse-channel helper, and a `signal` file the orchestrator polls.
+- **Clear a delegate's `signal` file after acting on it**, or its monitor
+  re-fires the same stale message immediately.
+- **This herdr build's agent API differs from the delegate skill's docs.** There
+  is no `herdr agent start --cwd`; the working sequence is:
+
+  ```bash
+  herdr pane split <pane> --direction right --cwd "$WT" --env DELEGATE_LABEL=w9
+  herdr agent start w9 --kind codex --pane <new_pane> -- <agent flags>
+  herdr agent prompt <new_pane> "Read and execute the spec at .delegate/spec.md"
+  ```
+
+  `herdr agent send` does **not** exist here — use `herdr agent prompt`. For
+  **agy**, `agent prompt` silently fails to submit; use `herdr pane run <pane>
+  "<text>"` instead. codex and claude both need their first-run trust /
+  bypass-permissions prompt answered with `herdr pane send-keys <pane> enter`
+  (claude needs `down` first to select "Yes, I accept").
+- Vendors were spread deliberately (codex, claude, agy) so no single quota pools.
+
+### 11.1c What to do next, in order
+
+1. **Verify and merge W3 and W4.** Both have signalled done and are clean.
+   Run the gate yourself (§7 G0b — the *orchestrator* runs the heavy suites):
+   `npm run frontend:typecheck`; the full renderer vitest; `test:e2e:renderer`;
+   `build:web`. Read their diffs against §6 — **W3 already under-delivered once**
+   with a green suite (see §11.1d).
+   **Expect a conflict in `frontend/e2e/support/fake-bridge.ts`:** W2 (merged)
+   and W3 both added an identical `capabilities` record to `installFakeBridge`
+   and `installFakeAgent`. Dedupe; keep one copy.
+2. **Run G3** — the first real end-to-end proof. Build the web bundle
+   (`npm run build:web`), restart the daemon so it embeds it, open
+   `http://127.0.0.1:3001` in a browser, and confirm **live** data (not
+   `mockWorkspaces`) plus a **streaming** terminal.
+3. **Run G2** (a real agent completing a real task on the scratch repo) — pure
+   environment validation, independent of everything above.
+4. **Then G4** (needs the human to re-apply `tailscale serve`), G5, G6, G7, G8.
+5. **W6** is unblocked now that W1 has merged, but it is second-wave and
+   deliberately deferred; G3–G8 matter more.
+
+### 11.1d Lessons from running the fan-out (do not relearn these)
+
+- **A green test suite is not evidence a delegate did the work.** W3 reported
+  done with a fully green suite having silently dropped most of its scope: no
+  tests, no typed-path field, and the two Electron-only calls its spec named
+  still unconditional. Only reading the diff **against the spec** caught it.
+  Always diff a delegate's branch against its own merge-base
+  (`git merge-base HEAD <integration>`), not against the integration head —
+  otherwise every commit the delegate simply doesn't have shows up as a deletion
+  and looks like a revert.
+- **The full suites are the orchestrator's job and they earn their keep.** W2's
+  scoped runs were green while the full suite found 43 real failures, and each
+  fix surfaced the next one (i18n → fake terminal → chat surface).
+- **Delegates escalating beat delegates guessing.** The two ownership errors in
+  the plan (`ShellSidebar.tsx` does not exist; the daemon-status UI was unowned)
+  were both found by delegates asking rather than inventing. W1 likewise asked a
+  real architectural question instead of choosing quietly.
+- **Watch for stale long-running processes.** A delegate left a `vite` dev server
+  running for an hour; it silently broke every Playwright run with
+  `ERR_CONNECTION_REFUSED` on `:5173` until it was killed. Check
+  `ps aux | grep vite` when e2e fails wholesale.
+- **A wholesale e2e failure is infrastructure, not code.** All 25 failing the
+  same way means the dev server never came up; one failing means a real bug.
 
 ### 11.2 Decided — do not relitigate
 
