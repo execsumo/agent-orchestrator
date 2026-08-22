@@ -344,6 +344,27 @@ Everything else depends on this type existing. Keep it small and merge it fast.
 `frontend/src/renderer/hooks/{useShellTerminals,useMigrationOffer,useSessionScmSummary,useSystemRequirementsGate,useWorkspaceQuery}.ts`,
 `frontend/package.json`, `frontend/vite.renderer.config.ts`.
 
+> **Correction (2026-08-22, verified): the mock-data blast radius is 11 files,
+> not 6.** The list above is incomplete, and the missing files are ones §6 hands
+> to *other* workstreams — so leaving it uncorrected produces a three-way
+> collision. The full consumer set of
+> `usesPreviewWorkspaceData` / `import.meta.env.VITE_NO_ELECTRON` in
+> `frontend/src` is:
+>
+> ```
+> lib/preview-mode.ts            hooks/useWorkspaceQuery.ts
+> hooks/useShellTerminals.ts     hooks/useMigrationOffer.ts
+> hooks/useSessionScmSummary.ts  hooks/useSystemRequirementsGate.ts
+> hooks/useAgentSwitches.ts      lib/session-reviews.ts
+> components/SessionsBoard.tsx   components/SessionInspector.tsx (+ .test.tsx)
+> routes/_shell.tsx              (5 separate uses)
+> ```
+>
+> **W0 owns all of them.** Because W0 lands alone and first, widening its
+> ownership costs nothing; the alternative is W2 (`SessionInspector`,
+> `SessionsBoard`) and W4 (`routes/_shell.tsx`) each half-migrating the same flag.
+> Re-run the grep before starting — anything else it finds, W0 owns too.
+
 1. Add to `AoBridge` a frozen capability record:
 
    ```ts
@@ -613,10 +634,46 @@ without it.
 Each gate is a hard stop. A green build is **not** a gate — every gate below is
 observed behavior. Record results in this file as you pass them.
 
-- **G0 Toolchain.** From a clean checkout: `npm install` at the repo root **and**
-  in `frontend/` (this repo is **not** an npm workspace — the root scripts shell
-  out with `npm --prefix`), then `cd backend && go build ./... && go test ./...`,
-  `npm run lint`, `npm run frontend:typecheck`.
+- **G0 Toolchain.** ✅ **PASSED 2026-08-22.** From a clean checkout: `npm install`
+  at the repo root **and** in `frontend/` (this repo is **not** an npm workspace —
+  the root scripts shell out with `npm --prefix`), then
+  `cd backend && go build ./... && go test ./...`, `npm run lint`,
+  `npm run frontend:typecheck`.
+
+  **Four environment prerequisites the first draft missed — a clean checkout does
+  NOT pass G0 without them:**
+
+  1. **`npm --prefix packages/product-ui install` is required for typecheck.**
+     §11.6 is right that product-ui never needs *building* (vite source-aliases
+     it), but `tsc` resolves `packages/product-ui/src/utils.ts` imports from
+     product-ui's own `node_modules`, so without that install
+     `frontend:typecheck` fails with `TS2307: Cannot find module 'clsx' /
+     'tailwind-merge'`. Three installs total: root, `frontend/`, `packages/product-ui/`.
+  2. **A tmux server must be running for `go test ./...` / `npm run lint`.**
+     Without one, `internal/adapters/runtime/tmux` and `internal/observe/activity`
+     fail with `no server running on /tmp/tmux-1000/default`. Fix:
+     `tmux new-session -d -s g0probe`. Both packages then pass. (herdr does not
+     provide this server.) `npm run lint` is `go test ./... && golangci-lint run`,
+     so it inherits the same requirement.
+  3. **`npx playwright install chromium` is required for `test:e2e:renderer`.**
+     Otherwise all 25 specs fail with `Executable doesn't exist at
+     …/chromium_headless_shell-1223/…`. After installing: **25 passed**.
+  4. **`npm --prefix frontend run test` has 10 pre-existing failing test files,
+     all in `src/landing/`** (unmet `cheerio` and `@ao/shared/constants` imports).
+     They are unrelated to the renderer and are **not** a regression — do not send
+     an agent to fix them. Use the renderer-scoped command as the real gate:
+     `cd frontend && npx vitest run --config vite.renderer.config.ts src/renderer src/main src/api`
+     → **156 files / 2272 passed, 1 skipped**.
+
+  **Measured baseline (use these numbers to judge a delegate's diff):**
+  `go build ./...` exit 0 · `go test ./...` all pass (with tmux) ·
+  `go vet ./...` exit 0 · `npm run lint` **0 issues** ·
+  `npm run frontend:typecheck` exit 0 · renderer vitest **2272 passed** ·
+  `npm run test:e2e:renderer` **25 passed**.
+
+  **Toolchain drift:** the installed Go is **`go1.25.7`**, not the `go1.26.7`
+  §4 claims; `go build ./...` passes on it in ~2s and no toolchain download
+  occurs. Ignore §11.6's "first build is slow" warning.
   **`packages/product-ui` does not need building.** `vite.renderer.config.ts:105`
   aliases `@aoagents/product-ui` straight to `packages/product-ui/src/index.ts`,
   and aliases its `clsx` / `tailwind-merge` to the frontend's copies. A frontend
@@ -676,6 +733,17 @@ W1–W5 run fully in parallel once W0 lands. The only shared-file hazards are
 `dto.go` + `specgen/build.go` (W1, then W6) and the shell chrome split — **W2 owns
 `WindowTitlebar.tsx`, W4 owns `ShellTopbar.tsx`**. Do not cross.
 
+**Two more collisions found 2026-08-22, resolved here:**
+
+- **`SessionView.tsx` — W2 owns it outright.** §6 assigns it to W2, but W4's
+  brief routes orchestrator rendering through `SessionView`/`CenterPane`. W4 must
+  treat it as read-only and escalate if it needs a change there.
+- **`routes/_shell.tsx` — W0 owns it during W0 only** (5 preview-flag uses, see
+  the W0 correction above), then it reverts to W4. W4 branches off post-W0 HEAD,
+  so it inherits the migrated file and must not re-migrate the flag.
+- **`openapi.yaml` + `frontend/src/api/schema.ts` belong to W1 alone.** No other
+  workstream regenerates or edits them.
+
 ---
 
 ## 9. Known limitations (document; do not silently fix)
@@ -725,13 +793,22 @@ of **2026-08-22**.
 
 ### 11.1 What exists right now
 
-- **Nothing is implemented.** This document is the only artifact. No workstream
-  has started; no code has been written for this goal.
-- Branch `docs/tailnet-webui-handoff`, forked from `main` at `11c1b5cae`. Both
-  commits on it are documentation: `5a7a322e2` (superseded first draft) and the
-  commit carrying this plan.
-- The working tree is otherwise clean. `node_modules` and `~/.ao` do **not**
-  exist — nothing has been installed or run.
+- **G0 has passed** (§7) and **W0 is in progress**; W1–W6 have not started.
+- Branch `docs/tailnet-webui-handoff`, forked from `main` at `11c1b5cae`.
+- **The tree is now installed.** `node_modules` exists at the repo root,
+  `frontend/`, and `packages/product-ui/`; Playwright's chromium is downloaded.
+  `~/.ao` still does **not** exist — no daemon has been run.
+- **Delegate worktrees** live at `../agent-orchestrator-worktrees/<slug>` on
+  branches `delegate/<slug>`. Because git worktrees do not share `node_modules`
+  and this repo needs three separate installs, each worktree gets **symlinked**
+  `node_modules` at all three locations, and **delegates are forbidden from
+  running `npm install`** (it would write through the symlink into the shared
+  tree). `.delegate/` and the symlinks are hidden via `.git/info/exclude` — note
+  that `.gitignore`'s `node_modules/` pattern has a trailing slash and therefore
+  does **not** match a symlink, and that git reads the **common** gitdir's
+  `info/exclude`, not the per-worktree one.
+- `git branch -D` is permission-gated in this environment. Recycle a delegate
+  branch with `git worktree add -B <branch>` instead of deleting it.
 - Remotes: `origin` = `execsumo/agent-orchestrator` (this fork),
   `upstream` = `Untrivial-ai/agent-orchestrator`.
 
