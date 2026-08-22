@@ -2,8 +2,10 @@
 package webui
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -31,10 +33,14 @@ var shadowedPrefixes = []string{
 // IsAPIShapedPath reports whether path belongs to the API/control surface the
 // static handler must never shadow. Exported so router.go's NotFound hook can
 // keep returning the JSON envelope for these paths instead of falling back to
-// the SPA's index.html.
+// the SPA's index.html. Matching is on an exact segment boundary — "/api"
+// blocks itself and everything beneath it ("/api/v1/sessions") but must not
+// catch an unrelated sibling like "/apix" or "/loginpage" (mirrors
+// lan_listener.go's isLANControlBlockedPath).
 func IsAPIShapedPath(path string) bool {
 	for _, prefix := range shadowedPrefixes {
-		if strings.HasPrefix(path, prefix) {
+		trimmed := strings.TrimSuffix(prefix, "/")
+		if path == trimmed || strings.HasPrefix(path, trimmed+"/") {
 			return true
 		}
 	}
@@ -63,26 +69,76 @@ func Handler() http.Handler {
 			return
 		}
 
-		// Try to serve the requested file.
-		f, err := distDir.Open(strings.TrimPrefix(r.URL.Path, "/"))
-		if err == nil {
+		// "/" and "/index.html" always serve the app shell directly — never
+		// through http.FileServer. Go's http.FileServer has a documented quirk:
+		// a request that resolves to a file literally named "index.html" gets
+		// redirected to the containing directory ("/index.html" -> "/") to avoid
+		// duplicate URLs for the same content. Handling these two paths here,
+		// up front, means we never hand FileServer a request whose path is
+		// literally "index.html" (whether the original request or a rewritten
+		// SPA-fallback path), so that redirect never fires.
+		trimmed := strings.TrimPrefix(r.URL.Path, "/")
+		if trimmed == "" || trimmed == "index.html" {
+			if serveIndex(w, r, distDir) {
+				return
+			}
+			http.NotFound(w, r) // no embedded index.html (shouldn't happen post-build)
+			return
+		}
+
+		// Try to serve the requested file as-is.
+		if f, err := distDir.Open(trimmed); err == nil {
 			_ = f.Close()
 			fileServer.ServeHTTP(w, r)
 			return
 		}
 
-		// If the file doesn't exist and the request has no file extension,
-		// assume it's an SPA client-side route and serve index.html (history
-		// fallback).
+		// File doesn't exist. If the path has no extension, assume it's a
+		// client-side SPA route and serve the app shell (history fallback) —
+		// via serveIndex, not by rewriting r.URL.Path and delegating to
+		// FileServer, which would re-trigger the index.html redirect above.
 		if !hasFileExtension(r.URL.Path) {
-			r.URL.Path = "/index.html"
-			fileServer.ServeHTTP(w, r)
-			return
+			if serveIndex(w, r, distDir) {
+				return
+			}
 		}
 
 		// File doesn't exist and doesn't look like an SPA route.
 		http.NotFound(w, r)
 	})
+}
+
+// serveIndex writes the embedded index.html directly via http.ServeContent,
+// at whatever path the caller requested (so SPA history-fallback routes don't
+// get redirected away from themselves). Returns false if index.html isn't
+// present in the embedded dist (e.g. the placeholder was removed without a
+// real frontend build taking its place) so the caller can decide how to
+// respond instead.
+func serveIndex(w http.ResponseWriter, r *http.Request, distDir fs.FS) bool {
+	f, err := distDir.Open("index.html")
+	if err != nil {
+		return false
+	}
+	defer func() { _ = f.Close() }()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return false
+	}
+
+	modTime := stat.ModTime()
+	if rs, ok := f.(io.ReadSeeker); ok {
+		http.ServeContent(w, r, "index.html", modTime, rs)
+		return true
+	}
+	// embed.FS files implement io.ReadSeeker in practice, but fall back to a
+	// buffered read for any fs.FS that doesn't, rather than assuming.
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return false
+	}
+	http.ServeContent(w, r, "index.html", modTime, bytes.NewReader(data))
+	return true
 }
 
 // hasFileExtension reports whether the path has a file extension.
