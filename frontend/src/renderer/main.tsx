@@ -17,8 +17,9 @@ import { startUpdateTelemetry } from "./lib/update-telemetry";
 import { appI18n } from "./i18n";
 import { useLocaleStore } from "./stores/locale-store";
 import { useSoundNotificationsStore } from "./stores/sound-notifications-store";
+import { aoBridge } from "./lib/bridge";
 
-if (window.ao === undefined) {
+if (!aoBridge.capabilities.daemonControl) {
 	setApiBaseUrl(window.location.origin);
 }
 
@@ -58,7 +59,9 @@ if (import.meta.env.DEV) {
 		});
 		console.log("[testNotif] bell updated - click away from AO now, bounce fires in 3s");
 		setTimeout(() => {
-			void window.ao?.notifications.devBounce();
+			if (aoBridge.capabilities.osNotifications) {
+				void aoBridge.notifications.devBounce();
+			}
 			// Restore normal stale time after bounce
 			queryClient.setQueryDefaults(key, { staleTime: 0 });
 		}, 3000);
