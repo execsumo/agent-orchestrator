@@ -6,6 +6,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { I18nextProvider } from "react-i18next";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
+import { setApiBaseUrl } from "./lib/api-client";
 import { queryClient } from "./lib/query-client";
 import { mergeUnreadNotification, unreadNotificationsQueryKey } from "./lib/notifications";
 import { createAppRouter } from "./router";
@@ -16,6 +17,10 @@ import { startUpdateTelemetry } from "./lib/update-telemetry";
 import { appI18n } from "./i18n";
 import { useLocaleStore } from "./stores/locale-store";
 import { useSoundNotificationsStore } from "./stores/sound-notifications-store";
+
+if (window.ao === undefined) {
+	setApiBaseUrl(window.location.origin);
+}
 
 const router = createAppRouter(queryClient);
 
