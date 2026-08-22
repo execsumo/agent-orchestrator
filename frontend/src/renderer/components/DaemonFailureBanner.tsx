@@ -32,12 +32,12 @@ function DaemonFailureContent({ status }: { status: DaemonStatus }) {
 		? slowStartup
 			? ""
 			: daemonFailureHint(status, t)
-		: "Start AO on the host, then reload this page.";
+		: t("daemon.webUnavailableHint");
 	const title = canControlDaemon
 		? slowStartup
 			? t("daemon.title.notReady")
 			: daemonFailureTitle(status, t)
-		: "AO daemon is unavailable";
+		: t("daemon.webUnavailableTitle");
 	const canRestart =
 		canControlDaemon &&
 		!slowStartup &&

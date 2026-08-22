@@ -241,9 +241,10 @@ export function BrowserPanelView({
 }
 
 function BrowserPanelUnavailable() {
+	const { t } = useTranslation();
 	return (
 		<p className="grid h-full place-items-center p-5 text-center text-xs text-passive" role="status">
-			The browser panel is available in the desktop app only.
+			{t("browser.desktopOnly")}
 		</p>
 	);
 }

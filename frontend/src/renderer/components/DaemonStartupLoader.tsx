@@ -81,7 +81,7 @@ export function DaemonStartupLoader() {
 				<p className="mt-5 text-base font-semibold tracking-tight text-foreground">Agent Orchestrator</p>
 				{webDaemonUnavailable ? (
 					<p className="mt-2 max-w-md text-md-sm text-muted-foreground">
-						The AO daemon is not reachable. Start AO on the host, then reload this page.
+						{t("daemon.webUnavailableBody")}
 					</p>
 				) : phase === "phrases" ? (
 					<p className="mt-2 min-h-5 text-md-sm text-muted-foreground">

@@ -198,8 +198,7 @@ export function InstallDependencyDialog({
 				<div className={cn(settingsDialogBodyClass, "gap-5")}>
 					{!canInstall ? (
 						<p className="text-caption leading-snug text-settings-muted" role="note">
-							Automatic dependency installation is available in the desktop app only. Install the missing
-							dependencies on the host, then check again.
+							{t("startup.webInstallUnavailable")}
 						</p>
 					) : null}
 					{gitBlocking && git ? (

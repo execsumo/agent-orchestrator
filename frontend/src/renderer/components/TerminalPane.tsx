@@ -656,6 +656,7 @@ export function TerminalPane({
 	inputDisabled,
 	focusRequested,
 }: TerminalPaneProps) {
+	const { t } = useTranslation();
 	const terminalTarget =
 		requestedTerminalTarget &&
 		terminalTargetBelongsToSession(requestedTerminalTarget, session?.id)
@@ -670,7 +671,7 @@ export function TerminalPane({
 	if (!aoBridge.capabilities.terminals) {
 		return (
 			<p className="grid h-full place-items-center bg-terminal p-4 text-center text-xs text-terminal-dim">
-				Live terminals are unavailable in this client.
+				{t("terminal.unavailable")}
 			</p>
 		);
 	}

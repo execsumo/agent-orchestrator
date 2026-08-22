@@ -95,7 +95,7 @@ describe("useDaemonStatus", () => {
 		const { result } = renderHook(() => useDaemonStatus(fakeQueryClient()));
 
 		await waitFor(() => expect(result.current.code).toBe("daemon_unreachable"));
-		expect(result.current.message).toBe("The AO daemon is not reachable from this web page.");
+		expect(result.current.message).toBeUndefined();
 		expect(setApiBaseUrlMock).toHaveBeenCalledWith(window.location.origin);
 	});
 

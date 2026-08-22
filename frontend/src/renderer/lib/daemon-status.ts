@@ -55,7 +55,6 @@ async function readWebDaemonStatus(): Promise<DaemonStatus> {
 		return {
 			state: "stopped",
 			code: "daemon_unreachable",
-			message: "The AO daemon is not reachable from this web page.",
 		};
 	}
 }

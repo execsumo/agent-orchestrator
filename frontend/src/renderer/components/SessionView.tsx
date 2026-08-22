@@ -48,7 +48,6 @@ import {
 import { useWorkspaceQuery } from "../hooks/useWorkspaceQuery";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
-import { aoBridge } from "../lib/bridge";
 import { SHELL_PANEL_SPRING } from "../lib/motion-spring";
 import { hidesShellTopbar, isMacPlatform } from "../lib/platform";
 import { useShell } from "../lib/shell-context";
@@ -299,9 +298,9 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const interfaceSwitch = useSessionInterfaceTransition(session?.id);
 	const reviewerQuery = useQuery({
 		queryKey: ["session-reviews", sessionId],
+		// Reviews are daemon HTTP data, so they are available in every client.
 		enabled: Boolean(
-			aoBridge.capabilities.terminals &&
-				session &&
+			session &&
 				sessionIsActive(session) &&
 				!isOrchestratorSession(session) &&
 				session.prs.length > 0,
