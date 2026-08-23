@@ -1740,9 +1740,16 @@ below.
 
 What remains:
 
-- ⚠️ **PENDING VERIFICATION — the tailnet URL from a second device.** This is the
-  one check the orchestrator cannot run, and it is **open as of the session
-  close**.
+- ~~**PENDING VERIFICATION — the tailnet URL from a second device**~~ — ✅
+  **done 2026-08-23 (late).** The operator loaded
+  `https://vibebox.goose-marlin.ts.net:8443/` and the page renders correctly after
+  a hard refresh. It surfaced one regression (the Open-in-editor error banner),
+  **fixed in `96eaf5b4a`** — see §11.9. Keep the detail below: it is the runbook
+  for the next time the binary is swapped.
+
+  **A hard refresh is required after any rebuild** — the browser caches the
+  previous hashed bundle, so the first load can show the old UI and look like the
+  fix did not take.
 
   `~/bin/ao` was replaced and the daemon restarted on 2026-08-23 at 17:55. The
   loopback side was verified — `/healthz` and `/readyz` `200`, `3011` `401`, the
