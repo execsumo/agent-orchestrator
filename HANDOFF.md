@@ -1,7 +1,7 @@
 # Agent Orchestrator: Tailnet Web Supervision
 
 **Status:** **all six workstreams (W0–W5) are built, verified and merged.** W6
-has not started. Gates **G0–G6 pass** — a browser on
+has not started. Gates **G0–G7 pass** — a browser on
 loopback renders live data and a real streaming PTY with no Electron, and the
 full tailnet loop works from a second device: board, terminal, chat,
 orchestrator delegation. What remains is gate verification:
@@ -899,13 +899,39 @@ observed behavior. Record results in this file as you pass them.
   prompt awaiting its next INSTRUCTION" *is* `waiting_input`; whether the
   claude-code TUI adapter's end-of-turn hook should map there instead of idle
   is worth checking post-gates.
-- **G7 Recovery.** Restart the daemon while logged in: sessions restore, the web
-  session survives (§5.5), terminals reconnect. Then `tailscale serve status`
-  still shows `:443 → 127.0.0.1:8000` untouched.
-  **G7b Port drift.** Occupy port 3011 with an unrelated process, restart the
-  daemon, and confirm the tailnet URL either still works or fails **loudly**.
-  A daemon that quietly binds an ephemeral port and leaves the URL 502ing is a
-  failed gate (§5.4).
+- **G7 Recovery.** ✅ **PASSED 2026-08-23.** Restarted the daemon while a web
+  session was live: all 9 session records restored with correct terminated
+  flags; the `ao_session` web cookie survived the restart and still
+  authenticated (`GET /api/v1/web/session` → true; protected API returns live
+  data), confirming §5.5's persisted session store. Terminal reconnect proven
+  with a real headless chromium against `http://127.0.0.1:3001`: POST
+  `/api/v1/shell-terminals` → `ws:///mux` open → `opened` frame → streaming PTY
+  data frames (test script drives the same protocol as the renderer).
+  `tailscale serve status` untouched throughout.
+
+  ⚠️ Test-harness notes, not product issues: the shell-terminal response wraps
+  the handle as `{"shellTerminal":{"handleId":…}}` (the renderer reads it via
+  its typed client — raw API consumers should too); and mux data frames are
+  base64, so match decoded content.
+
+  **Bonus finding:** on restore, the codex chat orchestrator
+  (`ao-g2-scratch-3`) failed to relaunch: `resume chat: thread/resume:
+  app-server error -32600: no rollout found for thread id …`. Codex-native
+  conversation identity was persisted but the rollout file is gone/never
+  created in this headless deployment — chat-session restore needs a fallback
+  (fresh thread with durable history replay) when provider resume fails.
+  Follow-up.
+
+  **G7b Port drift.** ✅ **PASSED 2026-08-23.** With an unrelated process bound
+  to `127.0.0.1:3011` and `AO_CONNECT_STRICT_PORT=1`, daemon startup logged
+  `bind LAN 127.0.0.1:3011: port already in use (strict mode)` (ERROR) and did
+  **not** drift to an ephemeral port — the listener simply stayed down, loudly.
+  Nuance worth knowing: strict mode fails the *listener*, not the whole daemon;
+  loopback `3001` keeps serving while the tailnet URL 502s. That matches the
+  §W5 belt-and-braces design (the supervisor unit's `ExecStartPost` re-applies
+  serve only from a port `ao connect status` actually reports), but a monitor
+  keyed on the daemon process alone would miss this state — check `ao connect
+  status` or the error log.
 - **G8 Security.** Automated: CSRF rejection and cross-origin `/mux` rejection
   **under both cookie and identity auth** (§5.7 — identity has no `SameSite`
   backstop, so this is the whole defense), lockout after 5 bad passwords **and
@@ -1029,7 +1055,7 @@ the working tree is clean.
 | **W4** orchestrator surface | ✅ merged | `0a608a75a` |
 | **W6** remote directory picker | not started (W1 has merged, so it is now unblocked) | — |
 
-**Gates:** G0 ✅, G0b ✅, G1 ✅, G2 ✅, G3 ✅, G4 ✅, G5 ✅, **G6 ✅**. G7–G8 not yet run.
+**Gates:** G0 ✅, G0b ✅, G1 ✅, G2 ✅, G3 ✅, G4 ✅, G5 ✅, G6 ✅, **G7/G7b ✅**. G8 not yet run.
 
 **All six workstreams (W0–W5) are merged.** W6 has not started. The integration
 branch is green end to end: `frontend:typecheck` clean, renderer vitest
