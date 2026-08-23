@@ -1151,10 +1151,10 @@ decisions.
   | `pr/project-creation-web-fallback` | **`pr/renderer-bridge-capabilities`** | yes | **W3 — stacked, deliberately in NO PR.** GitHub cannot target a base that exists only on the fork, so opening it against `main` today would duplicate all of W0+W2 in its diff. It becomes a 5-file PR the moment #4312 merges |
   | `pr/orchestrator-destination` | **`upstream/main`** | yes | **W4 — upstream PR #4313.** Rebased |
   | `pr/spawn-role-override-harness-scope` | `main` | yes | **upstream PR #4266** — the fix, squashed, plus its end-to-end Spawn test. Clean onto `upstream/main` |
-  | `pr/turn-complete-notification` | `main` | yes | **upstream PR #4267** — the feature, squashed, plus notification-centre and mobile coverage. Clean onto `upstream/main` |
+  | `pr/turn-complete-notification` | `main` | yes | **upstream PR #4267** — the feature, squashed, plus notification-centre and mobile coverage, **plus the `0107` schema fix and its ledger entry** (`490618de5`, `a77a14369` — §11.10). Clean onto `upstream/main` |
   | `feat/w6-remote-directory-picker` | integration branch | yes | **W6, built and verified. In no PR.** Conflicts onto `upstream/main` — but only in the ten files the split already resolved, because it carries the pre-rebase W0–W4 content |
-  | `test/w6-directory-picker-coverage` | `feat/w6-remote-directory-picker` | **no — local only** | follow-up 6: the picker's 12 new tests. Committed at `22719c53d`, **not pushed** |
-  | `deploy/all-features` | **`upstream/main`** | yes | **what `~/bin/ao` is built from.** Everything: upstream + all five slices + both fixes + W6 + picker tests + W5's fork-local files. Fork-local; never upstreamed (§11.9) |
+  | `test/w6-directory-picker-coverage` | `feat/w6-remote-directory-picker` | yes | follow-up 6: the picker's 13 tests, `22719c53d`. **Pushed 2026-08-23 (late)** — it was local-only until then |
+  | `deploy/all-features` | **`upstream/main`** | yes | **what `~/bin/ao` is built from**, head `2795115b6`. Everything: upstream + all five slices + both fixes + W6 + picker tests + W5's fork-local files + the `0107` schema fix. Fork-local; never upstreamed (§11.9, §11.10) |
   | `fix/fake-adapter-login-shell` | `main` | yes | `sh -lc` → `sh -c`; upstreamable, no PR opened. Clean onto `upstream/main` |
   | `feat/turn-complete-notifications`, `fix/spawn-role-override-model-leak` | `main` | yes | **pre-squash duplicates** of the two PR branches. Local and `origin` have diverged (local carries an unpushed squash); both trees are contained in the PR branches |
   | `fix/tui-needs-input-notifications` | — | yes | **superseded**; zero commits, exactly at `main` |
@@ -1197,10 +1197,12 @@ pre-existing upstream `crush` failure that is not ours (§11.9).
   prerequisites in §7 — a clean checkout does **not** pass G0 without them.
 - **A tmux server is running** (`g0probe`). `go test ./...` and `npm run lint`
   fail without one.
-- **`ao` binary at `~/bin/ao`** (durable location), built from the integration
-  head with `go build -o ~/bin/ao ./cmd/ao` — it embeds the real web bundle.
-  Rebuild **after** any `build:web`, or `go:embed` keeps serving the previous
-  bundle. Not on PATH; invoke as `~/bin/ao`.
+- **`ao` binary at `~/bin/ao`** (durable location), built with
+  `go build -o ~/bin/ao ./cmd/ao` — it embeds the real web bundle. **Current build:
+  2026-08-23 21:47 from `deploy/all-features` @ `159eec629`** (§11.10); the later
+  ledger commit is test-only and not compiled in. Build the bundle **immediately
+  before** the binary, or `go:embed` ships the `dist/index.html` stub and serves a
+  blank page — see the trap in §11.10. Not on PATH; invoke as `~/bin/ao`.
 - **A daemon is running on `127.0.0.1:3001`** with the full G4 env — to restart
   it identically:
 
@@ -1269,10 +1271,15 @@ Re-checked at the close of the 2026-08-23 session:
   plus `all-features` (on `deploy/all-features`). The `split-w1234`,
   `w6-picker-tests` and `audit-all-features` worktrees were torn down; their
   artifacts are archived at `~/projects/agent-orchestrator-artifacts/`.
-- **Every branch is pushed except one:** `test/w6-directory-picker-coverage`
-  (the picker's 13 tests, commit `22719c53d`) is **local only**. It survives in
-  the repo's git even though its worktree is gone, but it exists on no remote —
-  if this box is lost, that work is lost. Pushing it is one command.
+- **Every branch that matters is now pushed.** Corrected 2026-08-23 (late): three
+  refs were local-only at one point in this session — `test/w6-directory-picker-coverage`
+  (`22719c53d`), the head of `deploy/all-features` (the Open-in-editor gate, which
+  the *live deployment depended on*), and six commits of this handoff. **All three
+  are on `origin` now.** The only branches still absent from any remote are the
+  `delegate/*` working branches and `review/spawn-role-override`, `verify/g8`,
+  `test/spawn-cross-harness-e2e`, `feat/turn-complete-followups`,
+  `fix/tui-needs-input-notifications` — all of which the cleanup report proved
+  contained elsewhere, except `review/spawn-role-override` (§11.7).
 - **Five upstream PRs are open:** #4266, #4267, #4309, #4312, #4313.
 
 ### 11.1b Delegate infrastructure (how the fan-out is actually run)
@@ -1738,6 +1745,24 @@ https://vibebox.goose-marlin.ts.net:8443/
 - ~~G8, and the two critical fixes~~ — **all done 2026-08-23** (detail in §11.1f).
   Every gate in §7 passes and both fixes are on pushed branches.
 
+**Two decisions are open for the operator, both new as of 2026-08-23 (late):**
+
+1. **Reboot persistence.** Nothing restarts the daemon or re-applies
+   `tailscale serve` after a restart — this box has **no systemd** (PID 1 is
+   `sshd`), so `deploy/ao-daemon.service` cannot be installed. The daemon runs as
+   a bare `nohup ~/bin/ao daemon &`. This is the only real gap between "verified
+   working" and "durable"; the fallback without systemd is a login-shell hook or
+   a wrapper script. See §11.10.
+2. **PR #4267's body does not mention a migration.** A reviewer now sees
+   `0107_notification_turn_complete.sql` and a ledger entry appear in a PR
+   described as a notification feature. The commit messages carry the reasoning;
+   the body does not. Updating it (or posting a comment) is outward-facing and
+   was deliberately left to the operator.
+
+**Also live, and harmless:** one unread `turn_complete` notification
+(`ntf_3959be32`, "G2 probe finished its turn") sits in the database from the
+§11.10 verification probe. It is real data from a real turn, not a fixture.
+
 **State as of 2026-08-23 (late): every gate passes, every workstream W0–W6 is
 built and verified, the integration branch has been split into upstreamable
 branches, five upstream PRs are open (#4266, #4267, #4309, #4312, #4313), and
@@ -1916,7 +1941,7 @@ What remains:
   6. ~~`DirectoryPickerDialog.tsx` is 201 lines with exactly ONE test~~ — ✅
      **done 2026-08-23.** The file now has **13 tests** (was 1), on
      `test/w6-directory-picker-coverage` (off `feat/w6-remote-directory-picker`,
-     one commit `22719c53d`, **committed locally, not pushed**).
+     one commit `22719c53d`, **pushed 2026-08-23 (late)**).
 
      Covers both `unavailable` paths — the request-error branch and the `.catch`
      branch are separate code — plus `empty`, `loading`, `roots`, `back`,
