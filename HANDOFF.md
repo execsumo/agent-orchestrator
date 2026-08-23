@@ -2042,8 +2042,53 @@ stub. **`git checkout --` it; never commit it.**
 - Known, pre-existing: `restore-all: relaunch failed` for `ao-g2-scratch-3`
   (codex chat rollout missing) — the G7 codex chat-restore follow-up, not new.
 
-**Not verified by the orchestrator:** the tailnet URL from a second device. Only
-the operator can do that.
+**Verified by the operator 2026-08-23 (late):** the tailnet URL loads from a second
+device and the page renders correctly after a hard refresh.
+
+#### ⚠️ The rebuild shipped one regression. It is fixed — do not reintroduce it.
+
+On first load from the tailnet, **every session view showed "Desktop app is
+required to open a workspace"** in the topbar. Fixed in `96eaf5b4a` on
+`deploy/all-features`; the operator confirmed the page is clean after a refresh.
+
+**Cause.** Upstream's Open-in-editor button (#3284) is new — it does not exist on
+the integration branch, which is why this never appeared before the rebuild. It
+renders a persistent `TopbarActionError` whenever the bridge reports
+`workspaceAvailable: false`, and `bridge.ts`'s browser stub reports exactly that,
+unconditionally. So a non-error condition — "this is a browser" — rendered as a
+permanent error banner on every session.
+
+**This was a known, deliberate deferral that came due.** W4 was rebased with that
+button **ungated on purpose**: `pr/orchestrator-destination` carries no capability
+contract, so it has nothing to gate with, and PR #4313's body names the gating as
+a follow-up for whoever lands both. On `deploy/all-features` the contract **is**
+present, so the gate belonged here and was missed.
+
+**Fix.** A `nativeEditorHandoff` capability on `AoCapabilities` — `true` in the
+Electron preload, `false` in the web bridge — with the render site in
+`ShellTopbar.tsx` gated on it. The button is **absent** in a browser rather than
+present-and-erroring, matching W2's pattern for desktop-only surfaces.
+
+**The first regression test for it was vacuous, and the suite did not say so.**
+It asserted on a message the test bridge stub never produces (`setup.ts` returns
+`workspaceAvailable: true`) plus a role query whose regex matched nothing. It
+passed with the gate removed. The rewritten test asserts the **absence of the
+split button's `"Open workspace options"` dropdown trigger**, which renders
+whenever the component renders at all — so its absence proves the whole button
+was suppressed rather than merely disabled. Mutation-verified: dropping the gate
+fails with `expected <button …> to be null`.
+
+That is the fourth vacuous-green on this project. **Run the mutation. The pass
+count is not evidence.**
+
+**Anything else that consumes `AoCapabilities` must learn new keys too** — five
+test files construct the object literally (`preload.test.ts`, `bridge.test.ts`,
+`setup.ts`, `board-empty-states.test.tsx`, `shell-new-session-shortcut.test.tsx`).
+`tsc` catches a missing key; it will not catch a *wrong* value.
+
+Post-fix verification: renderer vitest **166 files / 2414 passed, 1 skipped**,
+typecheck clean, daemon rebuilt and restarted 20:44 serving `index-Da65qtTv.js`,
+all 9 sessions intact.
 
 #### Delegate artifacts
 
