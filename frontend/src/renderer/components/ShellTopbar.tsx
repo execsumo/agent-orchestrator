@@ -23,6 +23,7 @@ import { OrchestratorIcon } from "./icons";
 import { OrchestratorActivityIndicator } from "./OrchestratorActivityIndicator";
 import { getAgentActivityView } from "../lib/session-presentation";
 import { isLinuxPlatform, isMacPlatform, usesBoardActionsInPanel } from "../lib/platform";
+import { aoBridge } from "../lib/bridge";
 import { cn } from "../lib/utils";
 import { SHELL_PANEL_SPRING } from "../lib/motion-spring";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
@@ -278,8 +279,14 @@ export function ShellTopbar({
 						{/* Open-in-editor leads the session actions: it is the only
 						    non-destructive one, and it must sit left of Kill. Kept outside
 						    the local-actions group because Electron main independently
-						    reports whether this session has a live workspace. */}
-						{session ? (
+						    reports whether this session has a live workspace.
+
+						    Gated on the capability, not just on `session`: a browser client
+						    has no local editor to hand off to, and the bridge stub answers
+						    every state query with workspaceAvailable:false. Ungated, that
+						    renders a permanent "Desktop app is required to open a workspace"
+						    error in the topbar of every session. */}
+						{session && aoBridge.capabilities.nativeEditorHandoff ? (
 							// Keyed per session so a stale launch error does not carry over
 							// when switching sessions. The prefix keeps it distinct from the
 							// kill button's key: identical sibling keys make React duplicate

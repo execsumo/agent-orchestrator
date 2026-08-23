@@ -13,6 +13,7 @@ describe("createWebBridge", () => {
 			nativeFileDialogs: false,
 			osNotifications: false,
 			filePathDrop: false,
+			nativeEditorHandoff: false,
 		});
 		expect(Object.isFrozen(bridge.capabilities)).toBe(true);
 	});

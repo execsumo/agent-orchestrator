@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useUiStore } from "../stores/ui-store";
 import type { SessionActivityState, WorkspaceSession, WorkspaceSummary } from "../types/workspace";
+import { aoBridge } from "../lib/bridge";
 import { ShellTopbar, TopbarKillButton } from "./ShellTopbar";
 import { TooltipProvider } from "./ui/tooltip";
 
@@ -190,6 +191,43 @@ beforeEach(() => {
 });
 
 describe("ShellTopbar status pill", () => {
+	it("hides Open in editor when the bridge has no native editor handoff", async () => {
+		// A browser client has no local editor. The bridge stub answers every
+		// editorHandoff state query with workspaceAvailable:false, so an ungated
+		// button renders a permanent "Desktop app is required to open a workspace"
+		// error in the topbar of every session. Gate it on the capability instead.
+		const original = aoBridge.capabilities;
+		Object.defineProperty(aoBridge, "capabilities", {
+			configurable: true,
+			value: { ...original, nativeEditorHandoff: false },
+		});
+		try {
+			renderTopbar(sessionWith());
+			// "Open workspace options" is the split-button's dropdown trigger: it
+			// renders whenever the component renders at all, so its absence proves
+			// the gate suppressed the whole button rather than merely disabling it.
+			await waitFor(() => expect(screen.getByTestId("session-topbar-identity")).toBeTruthy());
+			expect(screen.queryByRole("button", { name: "Open workspace options" })).toBeNull();
+			expect(screen.queryByText(/Desktop app is required to open a workspace/i)).toBeNull();
+		} finally {
+			Object.defineProperty(aoBridge, "capabilities", { configurable: true, value: original });
+		}
+	});
+
+	it("renders Open in editor when the bridge reports native editor handoff", async () => {
+		const original = aoBridge.capabilities;
+		Object.defineProperty(aoBridge, "capabilities", {
+			configurable: true,
+			value: { ...original, nativeEditorHandoff: true },
+		});
+		try {
+			renderTopbar(sessionWith());
+			expect(await screen.findByRole("button", { name: "Open workspace options" })).toBeTruthy();
+		} finally {
+			Object.defineProperty(aoBridge, "capabilities", { configurable: true, value: original });
+		}
+	});
+
 	it("shows the worker session name and activity in the full topbar identity", () => {
 		renderTopbar(sessionWith());
 

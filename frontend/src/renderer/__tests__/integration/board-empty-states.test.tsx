@@ -37,6 +37,7 @@ vi.mock("../../lib/bridge", () => ({
 			nativeFileDialogs: true,
 			osNotifications: true,
 			filePathDrop: true,
+			nativeEditorHandoff: true,
 		}),
 		app: { chooseDirectory: chooseDirectoryMock },
 	},

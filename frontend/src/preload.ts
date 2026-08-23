@@ -89,6 +89,7 @@ export type AoCapabilities = {
 	nativeFileDialogs: boolean; // OS folder picker
 	osNotifications: boolean; // dock bounce / OS notifications
 	filePathDrop: boolean; // drag-drop yields absolute host paths
+	nativeEditorHandoff: boolean; // launch a workspace in a local editor/file manager
 };
 
 // A folder-drop path can arrive (cold start, or an early second-instance)
@@ -119,6 +120,7 @@ const api = {
 		nativeFileDialogs: true,
 		osNotifications: true,
 		filePathDrop: true,
+		nativeEditorHandoff: true,
 	}),
 	app: {
 		getVersion: () => ipcRenderer.invoke("app:getVersion") as Promise<string>,

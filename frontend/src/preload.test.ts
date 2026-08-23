@@ -60,6 +60,7 @@ describe("preload capabilities", () => {
 			nativeFileDialogs: true,
 			osNotifications: true,
 			filePathDrop: true,
+			nativeEditorHandoff: true,
 		});
 		expect(Object.isFrozen(exposedBridge().capabilities)).toBe(true);
 	});

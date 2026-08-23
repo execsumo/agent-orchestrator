@@ -13,6 +13,7 @@ export function createWebBridge(): AoBridge {
 			nativeFileDialogs: false,
 			osNotifications: false,
 			filePathDrop: false,
+			nativeEditorHandoff: false,
 		}),
 		app: {
 			getVersion: async () => "0.0.0-preview",

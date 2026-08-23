@@ -71,6 +71,7 @@ if (typeof window !== "undefined") {
 			nativeFileDialogs: true,
 			osNotifications: true,
 			filePathDrop: true,
+			nativeEditorHandoff: true,
 		}),
 		app: {
 			getVersion: async () => "0.0.0-test",
