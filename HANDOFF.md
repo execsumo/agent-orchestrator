@@ -7,6 +7,11 @@ full tailnet loop works from a second device: board, terminal, chat,
 orchestrator delegation, recovery and port-drift. What remains: **G8** (the
 security suite), then the operator-critical fixes in §11.1c item 4b, then W6.
 
+⚠️ **This file, on branch `docs/tailnet-webui-handoff`, is the only authoritative
+copy.** The copies in `../agent-orchestrator-worktrees/w0`–`w5` are the
+pre-fan-out draft that still claims "W0 in progress, W1–W6 not started". They are
+wrong. Do not orient off a worktree copy.
+
 **Starting fresh with no context? Read [§11.1](#111-what-exists-right-now)
 first** — it is the current state of the world, including what is merged, what
 is running, and exactly what to do next. Then read §2 (what upstream already
@@ -1042,9 +1047,25 @@ the operator-critical fixes in §11.1c item 4b.
 
 - Branch `docs/tailnet-webui-handoff`, forked from `main` at `11c1b5cae`.
   Integration head at the break: **`ff3fe0e06`** (this commit's parent chain
-  contains every merge below).
+  contains every merge below); the branch has since taken docs-only commits.
 - Remotes: `origin` = `execsumo/agent-orchestrator` (this fork),
-  `upstream` = `Untrivial-ai/agent-orchestrator`. **Nothing has been pushed.**
+  `upstream` = `Untrivial-ai/agent-orchestrator`.
+- **Push status (corrected 2026-08-23 — an earlier revision of this file said
+  "nothing has been pushed", which is no longer true and misled a session):**
+  `docs/tailnet-webui-handoff` **is pushed** to `origin`, as are both post-gate
+  fix branches. **No pull request has been opened anywhere**, on `origin` or
+  `upstream`. Branch disposition (PR upstream / merge into integration / leave
+  parked) is an open question for the operator.
+
+  | Branch | Base | On `origin` | State |
+  | --- | --- | --- | --- |
+  | `docs/tailnet-webui-handoff` | `main` @ `11c1b5cae` | yes | the integration branch; all of W0–W5 |
+  | `fix/spawn-role-override-model-leak` | `main` | yes | §11.1c 4b bullet 1 — **done**, 1 commit, unmerged |
+  | `fix/tui-needs-input-notifications` | `main` | yes | §11.1c 4b bullet 2 — **analysis only, zero commits** |
+
+  Both fix branches are cut from `main`, not from the integration branch, and
+  that is **deliberate** (§10: upstreamable product fixes stay separate from
+  fork-local deployment work). Do not "correct" them onto the integration branch.
 
 | Workstream | State | Merge commit |
 | --- | --- | --- |
@@ -1120,8 +1141,8 @@ what is running avoids confusion:
 - Old herdr delegate panes (`w1`–`w4`) from the build fan-out may still exist in
   workspace `wB`; their work is merged. Close with `herdr pane close <id>`
   (highest id first); worktrees and `delegate/*` branches can stay.
-- **Working tree clean**, everything committed on `docs/tailnet-webui-handoff`.
-  **Nothing has been pushed** to `origin`.
+- **Working tree clean**, everything committed on `docs/tailnet-webui-handoff`
+  and **pushed to `origin`** (see the push-status table in §11.1a). No PRs open.
 
 ### 11.1b Delegate infrastructure (how the fan-out is actually run)
 
