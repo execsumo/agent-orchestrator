@@ -538,8 +538,7 @@ shows a streaming terminal with no Electron present.
 
 ### W3 — Project creation without native dialogs
 
-> ⏳ **BUILT, AWAITING VERIFICATION** — branch `delegate/w3` @ `c4b4de20a`.
-> **Verify this one carefully.** Its first attempt reported done with a green
+> ✅ **MERGED `a1a54aef1`.** Took two correction rounds. Its first attempt reported done with a green
 > suite while having dropped most of its scope (no tests, no typed-path field,
 > `projectRepositoryPreflight` and `scanImportFolder` still unconditional).
 > Merging it will conflict with W2 in `frontend/e2e/support/fake-bridge.ts` —
@@ -570,8 +569,7 @@ and by typing a path, with clear errors on both.
 
 ### W4 — Orchestrator as a core surface
 
-> ⏳ **BUILT, AWAITING VERIFICATION** — branch `delegate/w4` @ `08247989f`.
-> Adds `routes/_shell.projects.$projectId_.orchestrator.tsx`,
+> ✅ **MERGED `0a608a75a`.** Adds `routes/_shell.projects.$projectId_.orchestrator.tsx`,
 > `lib/orchestrator-state.ts` (ported from `packages/mobile`, with tests), and a
 > permanent sidebar entry. It also adds **one new `@ORC` test** to the shared
 > `frontend/e2e/smoke-t0.spec.ts`; it reports no existing assertion was changed —
@@ -937,11 +935,16 @@ of **2026-08-22**.
 | **W5** deploy, ADR-0003, runbooks | ✅ merged | `a3d1ace0c` |
 | **W1** backend auth + static serving | ✅ merged | `a9137eed0` |
 | **W2** capability refactor | ✅ merged | `f4eb632a9` |
-| **W3** project creation without dialogs | ⏳ committed, **awaiting my verification** | branch `delegate/w3` @ `c4b4de20a` |
-| **W4** orchestrator surface | ⏳ committed, **awaiting my verification** | branch `delegate/w4` @ `08247989f` |
+| **W3** project creation without dialogs | ✅ merged | `a1a54aef1` |
+| **W4** orchestrator surface | ✅ merged | `0a608a75a` |
 | **W6** remote directory picker | not started (W1 has merged, so it is now unblocked) | — |
 
-**Gates:** G0 ✅, G0b ✅ (new, see §7), G1 ✅. G2–G8 not yet run.
+**Gates:** G0 ✅, G0b ✅, G1 ✅, **G3 ✅**. G2 and G4–G8 not yet run.
+
+**All six workstreams (W0–W5) are merged.** W6 has not started. The integration
+branch is green end to end: `frontend:typecheck` clean, renderer vitest
+**159 files / 2308 passed**, `test:e2e:renderer` **26 passed**,
+`cd backend && go build ./...` clean, `npm run lint` **0 issues**.
 
 ### 11.1a Environment state (differs from a clean checkout)
 
@@ -950,9 +953,17 @@ of **2026-08-22**.
   prerequisites in §7 — a clean checkout does **not** pass G0 without them.
 - **A tmux server is running** (`tmux new-session -d -s g0probe`). `go test ./...`
   and `npm run lint` fail without one.
-- **A daemon is running on `127.0.0.1:3001`**, started from a binary built with
-  `go build -o <tmp>/bin/ao ./cmd/ao`. `~/.ao` exists and holds real state
-  (`data/ao.db`, `worktrees/`). If you need port 3001, stop it first.
+- **A daemon is running on `127.0.0.1:3001`** (pid recorded in
+  `~/.ao/running.json`), built from the **current integration head** with
+  `go build -o <tmp>/bin/ao ./cmd/ao`, so it **embeds the real web bundle** — this
+  is the daemon G3 was proven against. `~/.ao` holds real state (`data/ao.db`,
+  `worktrees/`) and one auto-created project, `Scratch`.
+  - If you need port 3001, stop it first (`kill` the pid in `running.json`).
+  - **The binary lives in a scratch dir that does not survive a job cleanup.** If
+    it is gone, rebuild it — and remember to rebuild **after** any `build:web`, or
+    `go:embed` keeps serving the previous bundle.
+  - **`ao` is not on `PATH`.** Every invocation in this document assumes a
+    locally-built binary.
 - **`tailscale serve --https=8443` is OFF** (operator turned it off 2026-08-22).
   `:443 → http://127.0.0.1:8000` (Harness Asset Manager) is **untouched and
   off-limits**. Re-apply `:8443 → 127.0.0.1:3011` only at G4, and only a human
@@ -962,6 +973,23 @@ of **2026-08-22**.
 - `frontend/package-lock.json` has a benign uncommitted 2-line change (it gained
   `motion`, reconciling with `packages/product-ui`'s package.json during install).
   `git checkout` of it is permission-gated here; leave it out of merges.
+
+### 11.1a2 Live process state at the break (2026-08-22 end of session)
+
+Nothing here is load-bearing — a new session can kill all of it — but knowing
+what is running avoids confusion:
+
+- **Daemon** on `127.0.0.1:3001`, healthy, serving the embedded SPA.
+- **No stray `vite` or Playwright processes.** Confirmed zero. If e2e ever fails
+  *wholesale*, re-check this first (§11.1d).
+- **A tmux server** (`g0probe`) — required by `go test ./...` and `npm run lint`.
+- **Four idle herdr delegate panes** (`w1`–`w4`) in workspace `wB`, each in its
+  worktree with its work already merged. They are **finished**; close them with
+  `herdr pane close <id>` (highest id first — ids compact on close). Their
+  worktrees and `delegate/*` branches can stay; they cost nothing and `git
+  branch -D` is permission-gated here anyway.
+- **Working tree clean**, everything committed on `docs/tailnet-webui-handoff`.
+  **Nothing has been pushed** to `origin`.
 
 ### 11.1b Delegate infrastructure (how the fan-out is actually run)
 
@@ -1002,23 +1030,46 @@ each**, via the `delegate` skill. Reproduce it like this:
 
 ### 11.1c What to do next, in order
 
-1. **Verify and merge W3 and W4.** Both have signalled done and are clean.
-   Run the gate yourself (§7 G0b — the *orchestrator* runs the heavy suites):
-   `npm run frontend:typecheck`; the full renderer vitest; `test:e2e:renderer`;
-   `build:web`. Read their diffs against §6 — **W3 already under-delivered once**
-   with a green suite (see §11.1d).
-   **Expect a conflict in `frontend/e2e/support/fake-bridge.ts`:** W2 (merged)
-   and W3 both added an identical `capabilities` record to `installFakeBridge`
-   and `installFakeAgent`. Dedupe; keep one copy.
-2. **Run G3** — the first real end-to-end proof. Build the web bundle
-   (`npm run build:web`), restart the daemon so it embeds it, open
-   `http://127.0.0.1:3001` in a browser, and confirm **live** data (not
-   `mockWorkspaces`) plus a **streaming** terminal.
-3. **Run G2** (a real agent completing a real task on the scratch repo) — pure
-   environment validation, independent of everything above.
-4. **Then G4** (needs the human to re-apply `tailscale serve`), G5, G6, G7, G8.
-5. **W6** is unblocked now that W1 has merged, but it is second-wave and
-   deliberately deferred; G3–G8 matter more.
+Build and integration work is **done**. What remains is gate verification.
+
+1. **G2 — one real agent.** A worker spawned by AO completes a small real task on
+   a scratch repo, not mocked. A git-init'd scratch repo already exists at
+   `/home/dev/projects/ao-g2-scratch`. Independent of everything else; do it
+   first because it validates the environment, not the new code.
+
+2. **G4 — tailnet.** The big one, and the first test of anything this work has
+   *not* already proven. Sequence:
+   - Set `AO_CONNECT_BIND_HOST=127.0.0.1` and `AO_CONNECT_STRICT_PORT` (see
+     `deploy/ao-daemon.env.example`), enable the connect bridge (`ao connect
+     enable`), and confirm the LAN listener is on **3011**.
+   - Ask the **human** to run
+     `tailscale serve --bg --https=8443 http://127.0.0.1:3011` — agents cannot run
+     `tailscale`. Then confirm `tailscale serve status` still shows
+     `:443 → http://127.0.0.1:8000` untouched.
+   - From a second tailnet device: URL → board → live terminal → chat. With
+     identity trust on (`AO_CONNECT_TRUST_TAILSCALE_IDENTITY=1`,
+     `AO_CONNECT_ALLOWED_LOGINS=execsumo@github`) there should be **no login
+     prompt at all**. Then disable identity trust and confirm the password +
+     cookie path still works. Both credentials must be exercised.
+
+   ⚠️ **Most likely thing to break, and it is untested:** the built `index.html`
+   ships a CSP whose `connect-src` is
+   `'self' http://127.0.0.1:* ws://127.0.0.1:*`. Over
+   `https://vibebox.goose-marlin.ts.net:8443` the terminal needs a **same-origin
+   `wss://`**, which *should* be covered by `'self'` — but that assumption has not
+   been verified in a browser. If terminals fail at G4 while the board works,
+   **look at the CSP first** (`frontend/index.html`), not at the auth code.
+
+3. **G5** (orchestrator from a remote browser), **G6** (two concurrent isolated
+   workers), **G7/G7b** (restart recovery and port drift), **G8** (the automated
+   security suite — much of it already exists as Go tests from W1; G8 is about
+   running them plus the live checks).
+
+4. **W6** (remote directory picker) is unblocked now that W1 has merged, but it is
+   deliberately second-wave. Gates matter more.
+
+**Before doing any of the above, re-read §7 G0b.** The verification protocol is
+the thing most likely to be forgotten and most costly to relearn.
 
 ### 11.1d Lessons from running the fan-out (do not relearn these)
 
