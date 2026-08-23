@@ -853,7 +853,17 @@ observed behavior. Record results in this file as you pass them.
   > blank page. **Fix:** restart the daemon with
   > `AO_ALLOWED_ORIGINS=https://vibebox.goose-marlin.ts.net:8443` (now in
   > `deploy/ao-daemon.env.example`). Verified asset fetch then returns `200` +
-  > correct `Access-Control-Allow-Origin`. **Upstreamable follow-up (not yet
+  > correct `Access-Control-Allow-Origin`.
+  >
+  > **Board + terminal + chat verified from the second tailnet device
+  > (2026-08-23, operator-confirmed):** board renders, ticket opens, terminal
+  > streams. Chat proven end-to-end at API level too: installed
+  > `@agentclientprotocol/claude-agent-acp@0.64.2` into `~/acp-runtime`, wrapper
+  > script `~/bin/claude-acp-wrapper` (system node v22) exposed via
+  > `AO_CLAUDE_ACP_COMMAND`; chat-mode worker `ao-g2-scratch-2` replied "G4 CHAT
+  > OK" into its durable conversation. Remaining: operator sends a chat message
+  > from the remote browser, then identity trust is disabled and the
+  > password+cookie path driven in that browser. **Upstreamable follow-up (not yet
   > done):** teach `corsMiddleware` to pass through same-origin requests
   > (`Origin` host == `Host`) when they carry an accepted ambient credential —
   > safe only behind auth, so it must key on AuthKind, which on the LAN listener
