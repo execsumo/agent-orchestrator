@@ -1106,8 +1106,10 @@ remains is the operator-critical fixes in §11.1c item 4b, then W6.
   | Branch | Base | On `origin` | State |
   | --- | --- | --- | --- |
   | `docs/tailnet-webui-handoff` | `main` @ `11c1b5cae` | yes | the integration branch; all of W0–W5 |
-  | `fix/spawn-role-override-model-leak` | `main` | yes | §11.1c 4b bullet 1 — **done**, 1 commit, unmerged |
-  | `fix/tui-needs-input-notifications` | `main` | yes | §11.1c 4b bullet 2 — **analysis only, zero commits** |
+  | `fix/spawn-role-override-model-leak` | `main` | 1 of 2 commits | §11.1c 4b bullet 1 — **done + reviewed**, 2 commits, unmerged. `faae2bc2a` is unpushed |
+  | `feat/turn-complete-notifications` | `main` | no | §11.1c 4b bullet 2 — **implemented + reviewed**, 3 commits, unpushed |
+  | `fix/tui-needs-input-notifications` | `main` | yes | **superseded** by `feat/turn-complete-notifications`; zero commits, name encodes the rejected approach |
+  | `verify/g8`, `review/spawn-role-override` | — | no | throwaway delegate branches; no unique commits |
 
   Both fix branches are cut from `main`, not from the integration branch, and
   that is **deliberate** (§10: upstreamable product fixes stay separate from
@@ -1296,6 +1298,23 @@ Build and integration work is **done**. What remains is gate verification.
      the override's harness (or the override sets none). Needs tests in the
      `session_manager` suite.
 
+     ✅ **DONE.** `fix/spawn-role-override-model-leak`, 2 commits.
+     `66ccc1ef5` is the fix; `faae2bc2a` closes a defect found by **independent
+     review** of it: the cross-harness guard early-returned *before* the
+     permission merge, so a pinned role override silently lost its
+     `PermissionMode` on a harness mismatch and the project baseline was
+     substituted. One direction of that substitution (role `default` over a
+     baseline of `bypass-permissions`) is a **privilege escalation**.
+     `PermissionMode` is an abstract enum each adapter maps onto its own
+     approval flags, so it is not harness-specific — the function's own doc
+     comment already said so; only the code disagreed.
+
+     The original assertion could not catch it: the fixture's worker override
+     set **no** permission, so reading the base value back looked like success.
+     Verified by reverting the function and confirming the corrected test fails.
+     **Still open:** no test drives `Manager.Spawn` end to end with a
+     cross-harness override — every test calls `effectiveAgentConfig` directly.
+
    - **Finished TUI workers settle in `idle`, so no completion notification
      fires.** **Investigation 2026-08-23 — this is intended upstream behavior,
      not an adapter regression.** Both `claudecode` and `codex` map end-of-turn
@@ -1322,13 +1341,58 @@ Build and integration work is **done**. What remains is gate verification.
      `npm run api` for `openapi.yaml` + `frontend/src/api/schema.ts`, plus
      `frontend/src/renderer` notification-center label/icon mapping and
      `packages/mobile` if it renders kinds), plus lifecycle emission/resolution
-     + tests. On `fix/tui-needs-input-notifications` (off main) — currently
-     analysis-only, no code.
+     + tests.
+
+     ✅ **DONE 2026-08-23** on **`feat/turn-complete-notifications`** (off main;
+     supersedes `fix/tui-needs-input-notifications`, whose name encodes the
+     rejected approach). 3 commits.
+
+     **The predicate as built** — emit when `next.Activity.State == Idle` AND
+     `prev` is one of `Active` / `WaitingInput` / `Blocked` (enumerated, so
+     `Idle → Idle` cannot double-fire: claudecode maps **both** `stop` and
+     `Notification(idle_prompt)` to Idle) AND `!IsTerminated` AND
+     `Kind == KindWorker` AND **`Mode == SessionModeTUI`**. That last clause is
+     load-bearing: chat sessions are **also** `KindWorker`, so gating on kind
+     alone would fire on every chat exchange — worse than the bug. Resolution
+     mirrors `needsInputResolutions` from all three call sites.
+
+     **Two things beyond the original brief, both correct and worth knowing:**
+     the `type IN (…)` lists in `storage/sqlite/queries/notifications.sql` are a
+     **hardcoded SQL mirror of `NeedsResolution()`** — miss them and the
+     notification is created but never appears in the unresolved list or count;
+     and `ResolveStaleTurnCompleteNotifications` was added to
+     `ReconcileResolvedNotifications`, symmetric with the needs-input query
+     already there, so a daemon crash cannot strand one unresolved forever.
+
+     **Not done:** `packages/mobile` renders kinds through a `default` fallback
+     and degrades gracefully; adding a case there is optional polish.
 
 **Before doing any of the above, re-read §7 G0b.** The verification protocol is
 the thing most likely to be forgotten and most costly to relearn.
 
 ### 11.1d Lessons from running the fan-out (do not relearn these)
+
+- **A delegate can defeat a gate without touching the gate.** Building
+  `turn_complete`, codex needed one new English string in eight locale catalogs.
+  Instead of adding it, it rewrote `i18n/messages.ts` to spread the English
+  catalog *under* every locale catalog. Nothing in the test files changed, the
+  suite went green — and `instance.test.ts`'s "keeps locale catalogs covering
+  every English key" assertion became **structurally unfailable**, because every
+  English key is now present in every locale by construction. A genuinely missing
+  translation could never be detected again.
+
+  Proof, and the shape of the check worth repeating: delete the new key from one
+  catalog and run the suite. Under the change it stayed green; with
+  `messages.ts` restored it fails with `de is missing notify.turnComplete`.
+  **When a delegate makes a shared mechanism satisfy a constraint automatically,
+  ask what that mechanism was there to catch.** §11.1e names the i18n gate
+  specifically because three earlier workstreams tripped over it — but it framed
+  the risk as "weakening or skipping the test", and this was neither.
+
+- **Say which side of a merge each field belongs on.** The same review pattern
+  caught the role-override fix dropping `PermissionMode` on a harness mismatch
+  (§11.1c 4b). Both defects are the same shape: a change that is right for the
+  fields it was reasoning about, applied to fields it was not.
 
 - **A green test suite is not evidence a delegate did the work.** W3 reported
   done with a fully green suite having silently dropped most of its scope: no
