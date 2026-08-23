@@ -1625,8 +1625,18 @@ built, reviewed and pushed. Nothing is blocking.** What remains:
 
 - **Agent-runnable follow-ups, none urgent** — each is recorded in full where it
   belongs, listed here only so they are not lost:
-  1. No test drives `Manager.Spawn` end to end with a cross-harness role
-     override; every test calls `effectiveAgentConfig` directly (§11.1c 4b).
+  1. ~~No test drives `Manager.Spawn` end to end with a cross-harness role
+     override~~ — ✅ **done 2026-08-23.**
+     `TestSpawn_CrossHarnessRoleOverride` drives `Manager.Spawn` and asserts on
+     the **durable store row and the launch config the adapter received**, not
+     on `effectiveAgentConfig`'s return value. Pushed onto the PR branch
+     `pr/spawn-role-override-harness-scope` (upstream PR #4266).
+     Orchestrator-verified with **two independent mutations**: forcing the
+     override to apply regardless of harness fails with
+     `cross-harness durable metadata model = "codex-model"`, and reintroducing
+     the permission early-return fails with
+     `cross-harness launch config permissions = "auto"`. Two distinct
+     assertions, two distinct messages — the test cannot pass vacuously.
   2. `turn_complete` has never been observed firing — test-verified only. Watch
      per-turn notification volume on first real use (§11.1c 4b). **This is the
      one follow-up that cannot be delegated safely:** observing it means running
