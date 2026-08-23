@@ -1,13 +1,15 @@
 # Agent Orchestrator: Tailnet Web Supervision
 
-**Status:** **all six workstreams (W0–W5) are built, verified and merged.** W6
-has not started. Gates **G0–G7b all pass** — a browser on
-loopback renders live data and a real streaming PTY with no Electron, and the
-full tailnet loop works from a second device: board, terminal, chat,
-orchestrator delegation, recovery and port-drift. **G8 (security) passed
-2026-08-23** — all 13 clauses proven by tests whose bodies were read, plus live
-checks against the running daemon. What remains: the operator-critical fixes in
-§11.1c item 4b, then W6.
+**Status (2026-08-23):** **every workstream W0–W6 is built and verified, and
+every gate G0–G8 passes.** A browser on loopback renders live data and a real
+streaming PTY with no Electron; the full tailnet loop works from a second
+device — board, terminal, chat, orchestrator delegation, recovery, port-drift;
+and the security suite is proven clause by clause. Both post-gate fixes are done
+and are **open as upstream PRs #4266 and #4267**, each carrying its own tests.
+
+**The build is finished. Nothing is blocking.** What is left is two operator
+decisions (branch disposition, and observing `turn_complete` in a live daemon)
+plus a short list of non-urgent follow-ups — all in **[§11.7](#117-open-items-needing-a-human)**.
 
 ⚠️ **This file, on branch `docs/tailnet-webui-handoff`, is the only authoritative
 copy.** The copies in `../agent-orchestrator-worktrees/w0`–`w5` are the
@@ -1094,9 +1096,11 @@ of **2026-08-22**.
 
 ### 11.1 What exists right now
 
-**State as of 2026-08-23, end of session.** All six workstreams are merged and
-the working tree is clean. **Gates G0–G8 all pass** as of 2026-08-23. What
-remains is the operator-critical fixes in §11.1c item 4b, then W6.
+**State as of 2026-08-23, end of session.** W0–W5 are merged into the
+integration branch, **W6 is built on its own branch**, every working tree is
+clean, and **gates G0–G8 all pass**. Both post-gate fixes shipped as upstream
+PRs. Read **§11.1c** for what to do next and **§11.7** for the two open
+decisions.
 
 - Branch `docs/tailnet-webui-handoff`, forked from `main` at `11c1b5cae`.
   Integration head at the break: **`ff3fe0e06`** (this commit's parent chain
@@ -1105,10 +1109,11 @@ remains is the operator-critical fixes in §11.1c item 4b, then W6.
   `upstream` = `Untrivial-ai/agent-orchestrator`.
 - **Push status (corrected 2026-08-23 — an earlier revision of this file said
   "nothing has been pushed", which is no longer true and misled a session):**
-  `docs/tailnet-webui-handoff` **is pushed** to `origin`, as are both post-gate
-  fix branches. **No pull request has been opened anywhere**, on `origin` or
-  `upstream`. Branch disposition (PR upstream / merge into integration / leave
-  parked) is an open question for the operator.
+  every branch below is pushed to `origin`. **Two upstream pull requests are now
+  open** — #4266 and #4267 against `Untrivial-ai/agent-orchestrator` — opened
+  from the squashed `pr/*` branches. Everything else is still parked: disposition
+  of the integration branch, W6, and the fake-adapter fix is an open operator
+  decision (§11.7).
 
   | Branch | Base | On `origin` | State |
   | --- | --- | --- | --- |
@@ -1134,7 +1139,7 @@ remains is the operator-critical fixes in §11.1c item 4b, then W6.
 | **W2** capability refactor | ✅ merged | `f4eb632a9` |
 | **W3** project creation without dialogs | ✅ merged | `a1a54aef1` |
 | **W4** orchestrator surface | ✅ merged | `0a608a75a` |
-| **W6** remote directory picker | not started (W1 has merged, so it is now unblocked) | — |
+| **W6** remote directory picker | ✅ **built + verified**, on `feat/w6-remote-directory-picker`, **not merged, no PR** | `762a630f9` |
 
 **Gates:** G0 ✅, G0b ✅, G1 ✅, G2 ✅, G3 ✅, G4 ✅, G5 ✅, G6 ✅, G7/G7b ✅, **G8 ✅ (2026-08-23)**.
 **Every gate in §7 now passes.**
@@ -1193,16 +1198,23 @@ branch is green end to end: `frontend:typecheck` clean, renderer vitest
 Nothing here is load-bearing — a new session can kill all of it — but knowing
 what is running avoids confusion:
 
-- **Daemon** on `127.0.0.1:3001`, healthy, serving the embedded SPA and the LAN
-  listener on loopback `127.0.0.1:3011` (strict port on).
+Re-checked at the close of the 2026-08-23 session:
+
+- **Daemon** on `127.0.0.1:3001` (`/healthz` → `200`), serving the embedded SPA,
+  with the LAN listener on loopback `127.0.0.1:3011` (→ `401` unauthenticated,
+  which is auth working, not a fault). Strict port on.
+- **`~/bin/ao` was built 2026-08-23 02:08 from the integration branch.** It
+  therefore does **not** contain `turn_complete`, W6, or either fix — those live
+  on branches. Rebuilding it is exactly what makes observing `turn_complete`
+  disruptive (§11.7 follow-up 2).
+- **A tmux server** is running — required by `go test ./...` and `npm run lint`.
+- **No delegate panes.** All were closed at the end of the session; only the
+  orchestrator's own pane and an unrelated `pi` pane in workspace `wA` remain.
 - **No stray `vite` or Playwright processes.** If e2e ever fails *wholesale*,
-  re-check this first (§11.1d).
-- **A tmux server** (`g0probe`) — required by `go test ./...` and `npm run lint`.
-- Old herdr delegate panes (`w1`–`w4`) from the build fan-out may still exist in
-  workspace `wB`; their work is merged. Close with `herdr pane close <id>`
-  (highest id first); worktrees and `delegate/*` branches can stay.
-- **Working tree clean**, everything committed on `docs/tailnet-webui-handoff`
-  and **pushed to `origin`** (see the push-status table in §11.1a). No PRs open.
+  check this first (§11.1d).
+- **All seven working trees are clean** — the main checkout and worktrees
+  `w0`–`w5` — and every branch is pushed. Two upstream PRs are open (#4266,
+  #4267).
 
 ### 11.1b Delegate infrastructure (how the fan-out is actually run)
 
@@ -1244,10 +1256,18 @@ each**, via the `delegate` skill. Reproduce it like this:
 
   ```bash
   herdr pane send-text <pane> "<prompt>"   # types into the composer
-  herdr pane send-keys <pane> enter        # agy needs this to submit
+  herdr pane send-keys <pane> enter        # agy needs this to submit  (SEPARATE call)
   herdr pane wait-output <pane> --regex "." --source visible --lines 30 \
     --timeout 2000 --raw                   # the only way to read a pane
   ```
+
+  **Send the text and the enter as two separate tool calls, with a pause
+  between.** Chaining them races agy's startup: the text lands, the enter is
+  swallowed, the composer clears, and the agent sits `idle` looking as though it
+  had been prompted and finished instantly. **Always confirm with
+  `herdr agent list` that the agent actually went `working`** — a silent no-op
+  here is indistinguishable from a very fast agent, and costs a full round trip
+  to notice.
 
   Also: `herdr agent start … -- --dangerously-bypass-approvals-and-sandbox` and
   `-- --approve-for-me --sandbox workspace-write` are both **blocked by Claude
@@ -1260,156 +1280,54 @@ each**, via the `delegate` skill. Reproduce it like this:
 
 ### 11.1c What to do next, in order
 
-Build and integration work is **done**. What remains is gate verification.
+**Everything planned is built and verified. There is no next build step.** This
+section used to sequence the gates; they all pass, so it now sequences what a
+fresh session should actually do.
 
-1. **G2 — one real agent.** ✅ **PASSED 2026-08-23** (see §7). Environment validated:
-   daemon rebuilt to `~/bin/ao`, tmux server restarted, scratch repo registered and
-   a `claude-code` worker completed the task unprompted.
+**Before anything else:** re-read **§7 G0b** (verification integrity under
+parallel agents) and **§11.1d** (what delegates got wrong and how it was caught).
+Those two are the most expensive things to relearn.
 
-2. **G4 — tailnet.** The big one, and the first test of anything this work has
-   *not* already proven. Sequence:
-   - Set `AO_CONNECT_BIND_HOST=127.0.0.1` and `AO_CONNECT_STRICT_PORT` (see
-     `deploy/ao-daemon.env.example`), enable the connect bridge (`ao connect
-     enable`), and confirm the LAN listener is on **3011**.
-   - Ask the **human** to run
-     `tailscale serve --bg --https=8443 http://127.0.0.1:3011` — agents cannot run
-     `tailscale`. Then confirm `tailscale serve status` still shows
-     `:443 → http://127.0.0.1:8000` untouched.
-   - From a second tailnet device: URL → board → live terminal → chat. With
-     identity trust on (`AO_CONNECT_TRUST_TAILSCALE_IDENTITY=1`,
-     `AO_CONNECT_ALLOWED_LOGINS=execsumo@github`) there should be **no login
-     prompt at all**. Then disable identity trust and confirm the password +
-     cookie path still works. Both credentials must be exercised.
+1. **Orient, do not re-verify.** §11.1 has the branch table, §11.7 the open
+   items. Every claim of "done" in this file was checked by the orchestrator, not
+   taken from a delegate's report — where a mutation check was used, the exact
+   failure message is recorded. **Do not re-run the gates to satisfy yourself;**
+   re-run one only if you are about to change the code it covers.
 
-   ⚠️ **Most likely thing to break, and it is untested:** the built `index.html`
-   ships a CSP whose `connect-src` is
-   `'self' http://127.0.0.1:* ws://127.0.0.1:*`. Over
-   `https://vibebox.goose-marlin.ts.net:8443` the terminal needs a **same-origin
-   `wss://`**, which *should* be covered by `'self'` — but that assumption has not
-   been verified in a browser. If terminals fail at G4 while the board works,
-   **look at the CSP first** (`frontend/index.html`), not at the auth code.
+2. **Answer the two operator questions in §11.7** — branch disposition, and
+   whether to observe `turn_complete` live. Both are decisions, not tasks. Until
+   the first is answered, W6 and the fake-adapter fix stay parked on their
+   branches with no PR.
 
-3. **G5** (orchestrator from a remote browser), **G6** (two concurrent isolated
-   workers), **G7/G7b** (restart recovery and port drift), **G8** (the automated
-   security suite — much of it already exists as Go tests from W1; G8 is about
-   running them plus the live checks).
+3. **If asked to upstream more than the two open PRs**, the integration branch
+   must be split first: W1–W4 are upstream candidates, W5 is fork-local
+   deployment glue that must never be upstreamed (§6 W5, §10). The two `pr/*`
+   branches are the worked example of the shape upstream wants — cut from `main`,
+   squashed to one coherent commit, no `.delegate/` scaffolding, a PR body that
+   explains the rejected alternative.
 
-4. **W6** (remote directory picker) is unblocked now that W1 has merged, but it is
-   deliberately second-wave. Gates matter more.
+4. **If asked to keep improving**, the follow-up list in §11.7 is ranked and each
+   entry names its file. Follow-up 6 (the picker dialog's single test) is the
+   largest real gap.
 
-4b. **Post-gate fixes the operator flagged as critical (2026-08-23).** Both were
-   found by gate testing (details in the G6 entry, §7):
+5. **If resuming the deployment itself** — the daemon, the tailnet URL, the ACP
+   runtime — everything you need is in §11.1a, and the exact daemon command line
+   is there verbatim.
 
-   - **Role-override model leaks across harnesses on spawn.**
-     `backend/internal/session_manager/manager.go`: `effectiveHarness` honors an
-     explicit spawn harness, but `effectiveAgentConfig` applies the project role
-     override's `agentConfig.model` unconditionally — so an explicit
-     `claude-code` spawn inherited codex's `gpt-5.6-luna` and launched broken.
-     Fix: only merge role-override agent config when the resolved harness matches
-     the override's harness (or the override sets none). Needs tests in the
-     `session_manager` suite.
+**What NOT to do**, each learned the hard way:
 
-     ✅ **DONE.** `fix/spawn-role-override-model-leak`, 2 commits.
-     `66ccc1ef5` is the fix; `faae2bc2a` closes a defect found by **independent
-     review** of it: the cross-harness guard early-returned *before* the
-     permission merge, so a pinned role override silently lost its
-     `PermissionMode` on a harness mismatch and the project baseline was
-     substituted. One direction of that substitution (role `default` over a
-     baseline of `bypass-permissions`) is a **privilege escalation**.
-     `PermissionMode` is an abstract enum each adapter maps onto its own
-     approval flags, so it is not harness-specific — the function's own doc
-     comment already said so; only the code disagreed.
-
-     The original assertion could not catch it: the fixture's worker override
-     set **no** permission, so reading the base value back looked like success.
-     Verified by reverting the function and confirming the corrected test fails.
-     **Still open:** no test drives `Manager.Spawn` end to end with a
-     cross-harness override — every test calls `effectiveAgentConfig` directly.
-
-   - **Finished TUI workers settle in `idle`, so no completion notification
-     fires.** **Investigation 2026-08-23 — this is intended upstream behavior,
-     not an adapter regression.** Both `claudecode` and `codex` map end-of-turn
-     (`stop`, `idle_prompt`, `agent_completed`) to `ActivityIdle` by documented
-     decision (`backend/internal/adapters/agent/{claudecode,codex}/activity.go`).
-     The state model says waiting_input is "an agent at an empty prompt awaiting
-     its next instruction", which literally fits an idle worker — so it *reads*
-     like a bug — but **flipping it to waiting_input is wrong** because the whole
-     notification/automation layer keys on `NeedsInput()`:
-     - `lifecycle/reactions.go:429` suppresses `ready_to_merge` when
-       `NeedsInput()` → a finished worker that just opened a PR would never raise
-       ready_to_merge until the user sent another message;
-     - `cannotNudge` (`reactions.go:592`) suppresses automated nudges while
-       NeedsInput.
-
-     **Correct fix = a new notification kind (turn_complete), not reusing
-     needs_input.** Key the click/alert on the `Active → Idle` transition for
-     worker-kind sessions in `lifecycle/manager.go` (mirror the
-     needsInputResolutions pattern; resolve it on the next activity write).
-     NOT STARTED — it is an API-surface change (add
-     `NotificationType`/`Valid()`/`NeedsResolution()` case in
-     `domain/notification.go`, a `NotificationView` enum + `specgen/build.go`
-     `schemaNames` entry in `backend/internal/httpd/controllers/dto.go`, then
-     `npm run api` for `openapi.yaml` + `frontend/src/api/schema.ts`, plus
-     `frontend/src/renderer` notification-center label/icon mapping and
-     `packages/mobile` if it renders kinds), plus lifecycle emission/resolution
-     + tests.
-
-     ✅ **DONE 2026-08-23** on **`feat/turn-complete-notifications`** (off main;
-     supersedes `fix/tui-needs-input-notifications`, whose name encodes the
-     rejected approach). 2 commits, pushed.
-
-     A third commit was dropped before pushing: codex had committed its own
-     `.delegate/report.md` into the branch. `.delegate/` is git-excluded (§11.1b)
-     and delegate scaffolding must never ride along on a branch headed upstream —
-     **check for this before pushing any delegate's branch.** Removed with
-     `git rebase --onto <feat> <report-commit> <branch>`, since `rebase -i` is
-     unavailable in this environment.
-
-     **The predicate as built** — emit when `next.Activity.State == Idle` AND
-     `prev` is one of `Active` / `WaitingInput` / `Blocked` (enumerated, so
-     `Idle → Idle` cannot double-fire: claudecode maps **both** `stop` and
-     `Notification(idle_prompt)` to Idle) AND `!IsTerminated` AND
-     `Kind == KindWorker` AND **`Mode == SessionModeTUI`**. That last clause is
-     load-bearing: chat sessions are **also** `KindWorker`, so gating on kind
-     alone would fire on every chat exchange — worse than the bug. Resolution
-     mirrors `needsInputResolutions` from all three call sites.
-
-     **Two things beyond the original brief, both correct and worth knowing:**
-     the `type IN (…)` lists in `storage/sqlite/queries/notifications.sql` are a
-     **hardcoded SQL mirror of `NeedsResolution()`** — miss them and the
-     notification is created but never appears in the unresolved list or count;
-     and `ResolveStaleTurnCompleteNotifications` was added to
-     `ReconcileResolvedNotifications`, symmetric with the needs-input query
-     already there, so a daemon crash cannot strand one unresolved forever.
-
-     **Verified by the orchestrator, not just reported:** `npm run api` was
-     re-run and left the tree clean, so the committed `openapi.yaml` and
-     `schema.ts` really are generated rather than hand-patched (nothing else in
-     the suite would catch that — vitest and typecheck validate *against* the
-     committed `schema.ts`). Full renderer vitest **156 files / 2274 passed**,
-     `go vet` clean, `-race` clean on the changed packages, full backend suite
-     clean apart from the known `~/bin/ao` failure in §7 G0.
-
-     **Test-verified but never observed.** No `turn_complete` has fired in a
-     real session — the daemon is built from the integration branch and this work
-     is on a main-based branch, so seeing it would mean rebuilding `~/bin/ao`
-     and disturbing the live G4/G5 environment. **What to watch on first real
-     use is volume:** `stop` maps to Idle, so an interrupted turn notifies too,
-     and it is one notification per turn. Toast suppression while the user is
-     watching that session is already wired; if the notification *list* proves
-     noisy, dedupe on an existing unresolved `turn_complete` for the session.
-
-     **Small gaps, deliberately left:** `NotificationCenter.tsx`'s new label and
-     icon mapping has no direct test (its spec file was not touched), and
-     `offerRestore` (`NotificationCenter.tsx:370`) stays keyed to `needs_input`
-     only — consistent with the documented rule that restore is for an agent
-     *paused on input*, which a finished turn is not.
-
-     **Not done:** `packages/mobile` renders kinds through a `default` fallback
-     and degrades gracefully; adding a case there is optional polish.
-
-**Before doing any of the above, re-read §7 G0b.** The verification protocol is
-the thing most likely to be forgotten and most costly to relearn.
+- **Do not orient off a `HANDOFF.md` in a delegate worktree.** They are stale
+  copies; the banner at the top of this file explains.
+- **Do not "fix" `internal/adapters/agent/fake:TestFullLifecycleSpawnToTermination`**
+  on the integration branch. It is a known environmental failure, explained in
+  §7 G0, already fixed on `fix/fake-adapter-login-shell`.
+- **Do not re-run `npm install`** anywhere. Everything is installed; delegate
+  worktrees symlink into the shared tree and installing writes through the
+  symlink (§11.1b).
+- **Do not touch `tailscale serve --https=443`** — it is the operator's Harness
+  Asset Manager (§11.6).
+- **Do not restart or reconfigure the running daemon** casually; it is serving
+  the live tailnet environment (§11.1a2).
 
 ### 11.1d Lessons from running the fan-out (do not relearn these)
 
@@ -1431,9 +1349,31 @@ the thing most likely to be forgotten and most costly to relearn.
   the risk as "weakening or skipping the test", and this was neither.
 
 - **Say which side of a merge each field belongs on.** The same review pattern
-  caught the role-override fix dropping `PermissionMode` on a harness mismatch
-  (§11.1c 4b). Both defects are the same shape: a change that is right for the
-  fields it was reasoning about, applied to fields it was not.
+  caught the role-override fix dropping `PermissionMode` on a harness mismatch.
+  Both defects are the same shape: a change that is right for the fields it was
+  reasoning about, applied to fields it was not.
+
+- **The check that caught everything worth catching was the mutation check.**
+  Not reading the diff, not a green suite — deliberately breaking the behaviour
+  and confirming the test notices. It is cheap, and across this session it is
+  what proved the i18n gate had been defeated, that the role-override permission
+  assertion was hollow, that the new Spawn test was real (two mutations, two
+  distinct failures), that the notification-centre tests were real, and that
+  W6's jail checks symlinks in the right order (inverting it returns `200` with
+  the outside directory's contents). **Adopt it as the default way to accept a
+  delegate's tests.** Restore the file afterwards and say that you did.
+
+- **A test that exercises the primitive instead of the production path passes
+  for the wrong reason.** Seen twice: `TestSessionRevocationOnPasswordRegeneration`
+  called `websession.Store.RevokeAll()` directly rather than going through
+  `BridgeService`, and every role-override test called `effectiveAgentConfig`
+  rather than `Manager.Spawn`. Both would have survived the feature being
+  unwired. When auditing, ask what production calls, not what the test calls.
+
+- **An assertion whose fixture cannot distinguish pass from fail is worse than
+  no assertion.** The role-override permission check read the project baseline
+  back and looked green whether or not the override applied. Whenever a test
+  asserts a merged/overridden value, make the override differ from the base.
 
 - **A green test suite is not evidence a delegate did the work.** W3 reported
   done with a fully green suite having silently dropped most of its scope: no
