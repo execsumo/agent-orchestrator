@@ -23,11 +23,12 @@ restarted 2026-08-23 17:55. See **[§11.9](#119-deployall-features--the-branch-t
 for the assembly order, the build ordering a blank page depends on, and the
 rollback path.
 
-⚠️ **One check is OPEN at the session close and needs the operator:** nothing has
-loaded **`https://vibebox.goose-marlin.ts.net:8443/`** from a second device since
-the binary was swapped. The loopback side is verified; the tailnet loop is
-*probably* fine, not verified. **[§11.7](#117-open-items-needing-a-human)** has
-what to ask, what to check if it fails, and how to roll back.
+**The tailnet loop is verified end to end.** The operator loaded
+`https://vibebox.goose-marlin.ts.net:8443/` from a second device and the page
+renders. That check surfaced one regression the rebuild had shipped — an
+Open-in-editor error banner on every session view — **fixed in `96eaf5b4a`**
+(§11.9). A **hard refresh is required after any rebuild**, or the cached previous
+bundle makes a good build look broken.
 
 **The build is finished. Nothing else is blocking.** The rest is the branch
 deletions in §11.7, W3's PR queued behind #4312 merging, and observing
@@ -1347,11 +1348,11 @@ Those two are the most expensive things to relearn.
    failure message is recorded. **Do not re-run the gates to satisfy yourself;**
    re-run one only if you are about to change the code it covers.
 
-2. **Start with the PENDING VERIFICATION at the top of §11.7** — ask the operator
-   to open the tailnet URL from a second device. Everything else in this file is
-   done or is waiting on them; that check is the only thing standing between
-   "verified on loopback" and "verified end to end". Branch disposition is no
-   longer a question — it was decided and executed.
+2. **Nothing is pending verification.** The tailnet loop was confirmed end to end
+   by the operator, and the one regression it surfaced is fixed (§11.9). What
+   remains in §11.7 is the branch deletions and W3's PR, both waiting on the
+   operator, plus observing `turn_complete` — which needs no rebuild any more.
+   Branch disposition is no longer a question; it was decided and executed.
 
 3. **If asked to upstream more than the two open PRs**, the integration branch
    must be split first: W1–W4 are upstream candidates, W5 is fork-local
