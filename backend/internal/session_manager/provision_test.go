@@ -178,14 +178,35 @@ func TestEffectiveHarnessAndAgentConfig(t *testing.T) {
 		t.Fatalf("orchestrator harness = %q, want claude-code", h)
 	}
 
-	// Role override merges over the base agent config (set fields win; unset keep base).
-	got := effectiveAgentConfig(domain.KindWorker, cfg)
+	// Role override merges over the base agent config when the session's harness
+	// matches the override's pinned harness (set fields win; unset keep base).
+	got := effectiveAgentConfig(domain.HarnessCodex, domain.KindWorker, cfg)
 	if got.Model != "worker" || got.Mode != "high" || got.Permissions != domain.PermissionModeAuto {
 		t.Fatalf("merged worker config = %#v, want model=worker mode=high permissions=auto", got)
 	}
 	// Orchestrator has no agent-config override, so the base config is used as-is.
-	if got := effectiveAgentConfig(domain.KindOrchestrator, cfg); got.Model != "base" {
+	if got := effectiveAgentConfig(domain.HarnessClaudeCode, domain.KindOrchestrator, cfg); got.Model != "base" {
 		t.Fatalf("orchestrator config = %#v, want base", got)
+	}
+
+	// A session that resolves to a harness OTHER than the override's pinned one
+	// must not inherit the override's model/mode — model ids are harness-specific.
+	// Regression: an explicit claude-code spawn in a project whose worker override
+	// pins codex+gpt used to launch claude-code with a codex model id.
+	if got := effectiveAgentConfig(domain.HarnessClaudeCode, domain.KindWorker, cfg); got.Model != "base" || got.Mode != "low" {
+		t.Fatalf("cross-harness worker config = %#v, want base model/mode (no override leak)", got)
+	}
+	// Permissions are not harness-specific and still apply across harnesses.
+	if got := effectiveAgentConfig(domain.HarnessClaudeCode, domain.KindWorker, cfg); got.Permissions != domain.PermissionModeAuto {
+		t.Fatalf("cross-harness worker permissions = %#v, want auto", got)
+	}
+	// An override with no pinned harness keeps its apply-unconditionally behavior.
+	unpinned := domain.ProjectConfig{
+		AgentConfig: domain.AgentConfig{Model: "base"},
+		Worker:      domain.RoleOverride{AgentConfig: domain.AgentConfig{Model: "worker"}},
+	}
+	if got := effectiveAgentConfig(domain.HarnessClaudeCode, domain.KindWorker, unpinned); got.Model != "worker" {
+		t.Fatalf("unpinned override config = %#v, want model=worker", got)
 	}
 }
 
