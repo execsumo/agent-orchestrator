@@ -843,6 +843,22 @@ observed behavior. Record results in this file as you pass them.
   > tailnet device**, confirms no login prompt under identity trust, exercises
   > board → terminal → chat, then identity trust is disabled and the
   > password+cookie path is driven in that browser too.
+  >
+  > **Root cause found for "blank white page" on first device test (2026-08-23,
+  > fixed):** `corsMiddleware` (router.go, `cfg.AllowedOrigins`) rejects any
+  > request bearing an `Origin` outside its allowlist with `403 ORIGIN_FORBIDDEN`.
+  > The SPA's own tailnet origin wasn't allowlisted, so top-level navigation
+  > loaded (no Origin header) but every `crossorigin` module-script/fetch from
+  > the browser carried `Origin: https://vibebox…ts.net:8443` → all assets 403 →
+  > blank page. **Fix:** restart the daemon with
+  > `AO_ALLOWED_ORIGINS=https://vibebox.goose-marlin.ts.net:8443` (now in
+  > `deploy/ao-daemon.env.example`). Verified asset fetch then returns `200` +
+  > correct `Access-Control-Allow-Origin`. **Upstreamable follow-up (not yet
+  > done):** teach `corsMiddleware` to pass through same-origin requests
+  > (`Origin` host == `Host`) when they carry an accepted ambient credential —
+  > safe only behind auth, so it must key on AuthKind, which on the LAN listener
+  > is already set because auth wraps cors there; on the unauthenticated loopback
+  > listener it must stay strict or DNS-rebinding pages would pass Origin==Host.
 - **G5 Orchestrator.** From that remote browser: start the orchestrator, plan,
   delegate a task, land on the spawned worker.
 - **G6 Isolation.** Two concurrent workers on separate branches/worktrees, both
