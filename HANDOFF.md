@@ -1708,8 +1708,11 @@ and only one item is a decision: observing `turn_complete` (follow-up 2).
 What remains:
 
 - **Branch deletions — waiting on the operator.** A read-only cleanup report was
-  produced with a containment proof per branch (it lives in the delegate worktree
-  at `.delegate/cleanup-report.md`; the branch table in §11.1 carries the summary).
+  produced with a containment proof per branch. The delegate worktrees have since
+  been torn down; the report was archived to
+  **`~/projects/agent-orchestrator-artifacts/cleanup-report.md`**, alongside the
+  four PR-body drafts and the two correction briefs. The branch table in §11.1
+  carries the summary.
   Clean deletion candidates, each proven contained elsewhere:
   `fix/tui-needs-input-notifications` (exactly at `main`), `verify/g8`,
   `test/spawn-cross-harness-e2e`, `feat/turn-complete-followups`, the two local
@@ -1907,3 +1910,84 @@ the integration branch. They now carry upstream's newer files and the integratio
 branch does not, so that direction conflicts in `BrowserPanel.tsx`,
 `ShellTopbar.tsx` and all eight catalogs. Rebase the integration branch, or build
 from `upstream/main` — never merge backwards.
+
+### 11.9 `deploy/all-features` — the branch the local daemon now runs
+
+Built 2026-08-23 (late), on the operator's instruction to replace the binary and
+restart. **This is what `~/bin/ao` is now built from**, superseding §11.1a2's
+"integration branch, W0–W5 only".
+
+**Branch `deploy/all-features`** (`7f4de1b6a`, pushed to `origin`), worktree at
+`../agent-orchestrator-worktrees/all-features`. It is `upstream/main` plus, in
+order: `pr/webui-lan-serving`, `pr/project-creation-web-fallback` (carrying W0+W2
+and W3), `pr/orchestrator-destination`, `origin/pr/spawn-role-override-harness-scope`,
+`origin/pr/turn-complete-notification`, `fix/fake-adapter-login-shell`, then
+cherry-picks of W6 (`762a630f9`) and the picker tests (`22719c53d`), then one
+commit restoring W5's six fork-local files.
+
+**Every step applied with zero conflicts.** The earlier worry that W6 conflicts on
+`upstream/main` was about W6's *branch*, which drags pre-rebase W0–W4 content; its
+*commit* cherry-picks clean once W3 is present. This is the assembly order to
+reuse.
+
+**Verification (orchestrator-run, box quiet, serialized):** `frontend:typecheck`
+clean · `go build ./...` and `go vet ./...` clean · renderer vitest **166 files /
+2412 passed, 1 skipped** · `test:e2e:renderer` **26 passed** ·
+`internal/adapters/agent/fake:TestFullLifecycleSpawnToTermination` **now passes**
+(the `sh -lc` → `sh -c` fix works).
+
+⚠️ **One backend test fails, and it is NOT ours:**
+`internal/adapters/agent/crush:TestCrushLocalAuthStatusDoesNotUseProviderCatalog`
+(`status = ("authorized", true), want ("unknown", false)`). It fails identically
+on a clean `upstream/main` worktree, and this branch never touches
+`backend/internal/adapters/agent/crush/`. Environmental, like the fake-adapter
+failure was. **Do not send an agent to fix it.**
+
+#### Build order matters
+
+`dist/` is gitignored except `index.html`, which is tracked as a **placeholder** so
+`//go:embed all:dist` compiles. Build the binary without building the bundle first
+and the daemon serves a page requesting `/index.js` → 404 → **blank page**.
+
+```bash
+cd frontend && npm run build:web     # NOT a root script; it lives in frontend/package.json
+cd ../backend && go build -o ~/bin/ao ./cmd/ao
+```
+
+Afterwards `dist/index.html` shows as modified — that is the real artifact over the
+stub. **`git checkout --` it; never commit it.**
+
+#### Live state after the swap
+
+- `~/bin/ao` rebuilt 17:52; **rollback binary at `~/bin/ao.prev`**.
+- **DB backed up at `~/.ao/data/ao.db.pre-upgrade-20260823`**, taken *after* a
+  clean `ao stop` so the WAL was checkpointed. This mattered: upstream's 24
+  commits add migrations **0104, 0105, 0106**, so the new binary migrates
+  `ao.db` on first start and the old binary may not reopen it. Restoring means
+  putting back **both** the binary and the DB.
+- Daemon restarted with the §11.1a env **plus `AO_FS_ROOTS=/home/dev/projects`**,
+  which is what makes W6 usable — an empty root list denies everything, so
+  without it the picker is present but inert. Remove the variable to turn it off.
+- Verified live: `/healthz` and `/readyz` `200`, `3011` `401`, SPA serving the
+  real hashed bundle (no `/index.js` refs), both projects and all 9 sessions
+  intact, and the jail holding — `/etc` and a `../..` traversal both return the
+  uniform `404`, a legitimate root listing returns `200`.
+- Known, pre-existing: `restore-all: relaunch failed` for `ao-g2-scratch-3`
+  (codex chat rollout missing) — the G7 codex chat-restore follow-up, not new.
+
+**Not verified by the orchestrator:** the tailnet URL from a second device. Only
+the operator can do that.
+
+#### Delegate artifacts
+
+Panes and worktrees are torn down. The cleanup report, the audit report, the four
+PR-body drafts and the two correction briefs are archived at
+**`~/projects/agent-orchestrator-artifacts/`**.
+
+The audit reported 12 PRESENT / 0 MISSING / 1 WRONG. **The one "WRONG" was a false
+positive** caused by this file's own checklist wording: `TerminalPane.tsx` does
+still early-return a mock terminal, but keyed on `usesPreviewWorkspaceData`
+(`VITE_AO_PREVIEW_DATA === "1"`, an explicit opt-in) rather than on Electron
+absence — which is exactly what W0 changed. `build:web` sets `VITE_AO_WEB=1`, not
+that flag, and the string `a live PTY here in the desktop app` appears **0 times**
+in the shipped bundle. The fake terminal cannot render in the web build.
