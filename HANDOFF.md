@@ -1992,7 +1992,12 @@ Built 2026-08-23 (late), on the operator's instruction to replace the binary and
 restart. **This is what `~/bin/ao` is now built from**, superseding §11.1a2's
 "integration branch, W0–W5 only".
 
-**Branch `deploy/all-features`** (`7f4de1b6a`, pushed to `origin`), worktree at
+⚠️ **The branch head is local-only.** `origin/deploy/all-features` is at
+`7f4de1b6a`; the head is **`96eaf5b4a`**, the Open-in-editor gate below, and it
+has **never been pushed**. The fix the live tailnet deployment depends on exists
+on this box and nowhere else. Push it.
+
+**Branch `deploy/all-features`** (head `96eaf5b4a`, `origin` at `7f4de1b6a`), worktree at
 `../agent-orchestrator-worktrees/all-features`. It is `upstream/main` plus, in
 order: `pr/webui-lan-serving`, `pr/project-creation-web-fallback` (carrying W0+W2
 and W3), `pr/orchestrator-destination`, `origin/pr/spawn-role-override-harness-scope`,
