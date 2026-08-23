@@ -1600,5 +1600,46 @@ https://vibebox.goose-marlin.ts.net:8443/
 - ~~Gates G2, G4, G5, G6~~ — **passed 2026-08-23** with the operator as the
   remote-browser witness. G8 needs no human.
 
-- **Remaining human decisions:** none blocking. Next work is agent-runnable:
-  G8, then the two critical fixes (§11.1c item 4b), then W6 if desired.
+- ~~G8, and the two critical fixes in §11.1c item 4b~~ — **all done 2026-08-23.**
+  Every gate in §7 passes and both fixes are on pushed branches.
+
+**State as of 2026-08-23: all gates pass, all planned work through §11.1c 4b is
+built, reviewed and pushed. Nothing is blocking.** What remains:
+
+- **Branch disposition — the one real decision, and it is the operator's.**
+  Three branches sit on `origin` with **no PR opened on either remote**:
+  `docs/tailnet-webui-handoff` (all of W0–W5), `fix/spawn-role-override-model-leak`
+  and `feat/turn-complete-notifications`. The two fix branches are cut from
+  `main` precisely so they can go upstream independently (§10); the integration
+  branch mixes upstreamable product work with fork-local deployment glue and
+  would need splitting first. Options: PR the fix branches upstream, merge them
+  into the integration branch, or leave them parked. Nothing decays if this
+  waits.
+
+- **W6 — remote directory picker.** The only unbuilt workstream, and now fully
+  unblocked: W1 has merged and no other workstream is holding `dto.go`,
+  `specgen/build.go`, `openapi.yaml` or `schema.ts`. It is the most
+  security-sensitive surface in the plan (a network filesystem-enumeration API),
+  so it needs jailed roots, path-traversal tests, and a decision on whether it
+  belongs on `lanControlBlockedPrefixes`.
+
+- **Agent-runnable follow-ups, none urgent** — each is recorded in full where it
+  belongs, listed here only so they are not lost:
+  1. No test drives `Manager.Spawn` end to end with a cross-harness role
+     override; every test calls `effectiveAgentConfig` directly (§11.1c 4b).
+  2. `turn_complete` has never been observed firing — test-verified only. Watch
+     per-turn notification volume on first real use (§11.1c 4b).
+  3. `NotificationCenter.tsx`'s new label/icon mapping has no direct test.
+  4. `internal/adapters/agent/fake:TestFullLifecycleSpawnToTermination` fails on
+     this box because of `sh -lc` plus `~/bin/ao`; the honest fix is
+     `sh -lc` → `sh -c` in `fake.go:106` (§7 G0). Upstream-relevant, not made.
+  5. `packages/mobile` could render a `turn_complete` case; it degrades
+     gracefully today.
+
+- **Housekeeping.** Delegate worktrees `w0`/`w1`/`w2` hold
+  `feat/turn-complete-notifications`, `verify/g8` and
+  `fix/spawn-role-override-model-leak`. `verify/g8` and
+  `review/spawn-role-override` are throwaway branches with no unique commits.
+  `fix/tui-needs-input-notifications` is superseded, has zero commits, and is
+  still on `origin`. Recall that `git branch -D` is permission-gated here
+  (§11.1b) — recycle with `git worktree add -B` instead.
