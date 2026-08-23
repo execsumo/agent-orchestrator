@@ -1116,7 +1116,11 @@ remains is the operator-critical fixes in §11.1c item 4b, then W6.
   | `fix/spawn-role-override-model-leak` | `main` | yes (`faae2bc2a`) | §11.1c 4b bullet 1 — **done + reviewed**, 2 commits, unmerged |
   | `feat/turn-complete-notifications` | `main` | yes (`b1a9dc96c`) | §11.1c 4b bullet 2 — **implemented + reviewed**, 2 commits, unmerged |
   | `fix/tui-needs-input-notifications` | `main` | yes | **superseded** by `feat/turn-complete-notifications`; zero commits, name encodes the rejected approach |
-  | `verify/g8`, `review/spawn-role-override` | — | no | throwaway delegate branches; no unique commits |
+  | `pr/spawn-role-override-harness-scope` | `main` | yes | **upstream PR #4266** — the fix, squashed, plus its end-to-end Spawn test |
+  | `pr/turn-complete-notification` | `main` | yes | **upstream PR #4267** — the feature, squashed, plus notification-centre and mobile coverage |
+  | `feat/w6-remote-directory-picker` | integration branch | yes | **W6, built and verified. In no PR** — needs the integration-branch split first |
+  | `fix/fake-adapter-login-shell` | `main` | yes | `sh -lc` → `sh -c`; upstreamable, no PR opened |
+  | `verify/g8`, `review/spawn-role-override`, `test/spawn-cross-harness-e2e`, `feat/turn-complete-followups` | — | partly | delegate working branches; their commits are already on the PR branches |
 
   Both fix branches are cut from `main`, not from the integration branch, and
   that is **deliberate** (§10: upstreamable product fixes stay separate from
@@ -1603,8 +1607,15 @@ https://vibebox.goose-marlin.ts.net:8443/
 - ~~G8, and the two critical fixes in §11.1c item 4b~~ — **all done 2026-08-23.**
   Every gate in §7 passes and both fixes are on pushed branches.
 
-**State as of 2026-08-23: all gates pass, all planned work through §11.1c 4b is
-built, reviewed and pushed. Nothing is blocking.** What remains:
+**State as of 2026-08-23: every gate passes, every workstream W0–W6 is built and
+verified, four of the five follow-ups are closed, and two upstream PRs are open
+(#4266, #4267), each now carrying its own tests. Nothing is blocking.**
+
+**Two things are open and both are operator decisions, not undone work:**
+branch disposition (below), and observing `turn_complete` fire in a live daemon
+(follow-up 2). Do not read "four of five" as "all five".
+
+What remains:
 
 - **Branch disposition — the one real decision, and it is the operator's.**
   Three branches sit on `origin` with **no PR opened on either remote**:
@@ -1616,12 +1627,38 @@ built, reviewed and pushed. Nothing is blocking.** What remains:
   into the integration branch, or leave them parked. Nothing decays if this
   waits.
 
-- **W6 — remote directory picker.** The only unbuilt workstream, and now fully
-  unblocked: W1 has merged and no other workstream is holding `dto.go`,
-  `specgen/build.go`, `openapi.yaml` or `schema.ts`. It is the most
-  security-sensitive surface in the plan (a network filesystem-enumeration API),
-  so it needs jailed roots, path-traversal tests, and a decision on whether it
-  belongs on `lanControlBlockedPrefixes`.
+- **W6 — remote directory picker.** ✅ **BUILT 2026-08-23** on
+  `feat/w6-remote-directory-picker` (off the integration branch, 1 commit,
+  pushed). **It is in no PR and cannot go upstream until the integration branch
+  is split** — see branch disposition above. Do not assume it is queued behind
+  #4266/#4267.
+
+  **Jail design** (`backend/internal/fsjail`): reject `..` segments and NUL bytes
+  **lexically, before any filesystem access** → resolve every symlink with
+  `EvalSymlinks` → **only then** check containment with `filepath.Rel`. That
+  ordering is the entire security property. Every failure — outside-root,
+  missing, unreadable, symlink escape — returns one uniform
+  `404 FILESYSTEM_PATH_UNAVAILABLE` carrying no path, so there is no path oracle.
+  `AO_FS_ROOTS` is empty by default and **an empty root list denies everything**:
+  the feature is off unless deliberately configured.
+
+  **Verified by mutation, not by the delegate's report.** Inverting the ordering
+  to check containment on the lexical path first makes an escaping symlink return
+  **`200` with the outside directory's contents** — caught at both the jail level
+  (`TestResolveChecksSymlinksBeforeContainment`) and the HTTP level
+  (`TestFilesystemListJailSecurityProperties`, which additionally asserts every
+  hostile response is byte-identical to the others). `npm run api` re-run leaves
+  the tree clean. Renderer vitest **160 files / 2309 passed**, e2e **26 passed**,
+  `go vet` clean, backend suite clean apart from the known fake-adapter failure
+  (this branch predates the fix for it).
+
+  **The `lanControlBlockedPrefixes` call was made explicitly rather than by
+  omission:** `/api/v1/fs` is **not** blocked, because the SPA is served from the
+  LAN listener and blocking it there would make the feature unusable; the routes
+  are not daemon-control routes and stay behind LAN auth plus the jail. A test
+  asserts they remain reachable, pinning the decision.
+
+  Remaining W6 gap: the picker dialog's own test coverage — see follow-up 6.
 
 - **Agent-runnable follow-ups, none urgent** — each is recorded in full where it
   belongs, listed here only so they are not lost:
@@ -1645,10 +1682,17 @@ built, reviewed and pushed. Nothing is blocking.** What remains:
      Either rebuild `~/bin/ao` and accept the disruption, or stand up a second
      daemon on a separate `AO_DATA_DIR` and non-conflicting ports. **Needs an
      operator decision before anyone starts.**
-  3. `NotificationCenter.tsx`'s new label/icon mapping has no direct test.
+  3. ~~`NotificationCenter.tsx`'s new label/icon mapping has no direct test~~ —
+     ✅ **done 2026-08-23**, pushed onto `pr/turn-complete-notification`
+     (upstream PR #4267). Mutation-verified: deleting the `turn_complete` label
+     and icon-class cases fails with
+     `Unable to find a label with the text of: Turn complete`. The tests assert
+     the **rendered** translated label and the routing, not that `t()` was
+     called, and one pins the decided behaviour that a terminated session behind
+     a `turn_complete` stays viewable rather than being gated behind restore.
   4. ~~`internal/adapters/agent/fake:TestFullLifecycleSpawnToTermination` fails
      on this box because of `sh -lc` plus `~/bin/ao`~~ — ✅ **fixed 2026-08-23**
-     on `fix/fake-adapter-login-shell` (off `main`, 1 commit, not pushed).
+     on `fix/fake-adapter-login-shell` (off `main`, 1 commit, pushed, no PR).
      It turned out to be more than a test artifact: `HookPATH` deliberately pins
      a spawned session's PATH with the daemon executable's directory **first**,
      so `ao hooks fake …` resolves to the daemon that spawned the session — it
@@ -1660,13 +1704,39 @@ built, reviewed and pushed. Nothing is blocking.** What remains:
      updated with the reason. **`qwen` also uses `sh -lc` and was deliberately
      left alone** — a real agent may legitimately want a login shell for
      version-manager shims; that is a separate judgement for upstream.
-  5. `packages/mobile` could render a `turn_complete` case; it degrades
-     gracefully today.
+  5. ~~`packages/mobile` could render a `turn_complete` case~~ — ✅ **done
+     2026-08-23**, same branch and PR. The delegate found **two things outside
+     the brief**, both real: `packages/mobile/lib/api.ts` carries its own
+     `NotificationType` union that also had to learn the kind, and
+     `notificationTarget` routed `turn_complete` to `/prs` — it is a **session**
+     notification, so that was a live misrouting bug in the Expo app, not merely
+     a missing case.
 
-- **Housekeeping.** Delegate worktrees `w0`/`w1`/`w2` hold
-  `feat/turn-complete-notifications`, `verify/g8` and
-  `fix/spawn-role-override-model-leak`. `verify/g8` and
+     `i18n/messages.ts` was left untouched this time and the English strings went
+     into all eight catalogs — the §11.1d lesson landed.
+     **Not verified here:** the `check-circle` Feather glyph name. It is
+     compiler-enforced at `Feather name={v.icon}` whenever `packages/mobile` is
+     built, and it is a real Feather icon, but that package has no
+     `node_modules` on this box so nothing checked it locally.
+
+  6. **`DirectoryPickerDialog.tsx` is 201 lines with exactly ONE test** — the
+     happy path ("lists jailed directories and returns a selected folder"). W6
+     added ten `directoryPicker.*` i18n keys (`unavailable`, `empty`,
+     `inaccessible`, `back`, `roots`, `loading`, `selectCurrent`, …) and every
+     one of those rendered states has a string but no assertion. The whole
+     workstream moved the renderer suite by **+1 test** (2308 → 2309), which is
+     the tell. Not a security gap — the jail is well covered — but it is the
+     third time this session a green suite has looked like coverage, so it is
+     named here rather than folded into "W6 verified".
+
+- **Housekeeping.** Worktrees at the break: `w0` `feat/turn-complete-notifications`,
+  `w1` `feat/w6-remote-directory-picker`, `w2` `fix/spawn-role-override-model-leak`,
+  `w3` `feat/turn-complete-followups`, `w4` `test/spawn-cross-harness-e2e`,
+  `w5` `fix/fake-adapter-login-shell`. `verify/g8` and
   `review/spawn-role-override` are throwaway branches with no unique commits.
+  `feat/turn-complete-notifications` and `fix/spawn-role-override-model-leak` are
+  the **pre-squash** duplicates of the two PR branches — safe to delete on
+  `origin`.
   `fix/tui-needs-input-notifications` is superseded, has zero commits, and is
   still on `origin`. Recall that `git branch -D` is permission-gated here
   (§11.1b) — recycle with `git worktree add -B` instead.
