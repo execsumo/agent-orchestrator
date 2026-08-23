@@ -1,0 +1,21 @@
+[Unit]
+Description=Agent Orchestrator Daemon Supervisor
+After=network.target tailscaled.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/ao/ao-daemon.env
+# Adjust the path to the ao binary as needed
+ExecStart=/usr/local/bin/ao daemon
+
+# Re-apply the serve target from the port ao connect status actually reports.
+# Belt and braces: because securePairing is OFF, this covers the serve-reconciliation gap.
+ExecStartPost=/bin/sh -c 'sleep 3 && PORT=$(/usr/local/bin/ao connect status | grep -Eo "127\.0\.0\.1:[0-9]+" | cut -d: -f2) && tailscale serve --bg --https=8443 http://127.0.0.1:$PORT'
+
+Restart=always
+RestartSec=5
+User=ao
+Group=ao
+
+[Install]
+WantedBy=multi-user.target
