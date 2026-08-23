@@ -1480,7 +1480,8 @@ notification/automation layer keys on `NeedsInput()`:
 needs_input.** Key the click/alert on the `Active → Idle` transition for
 worker-kind sessions in `lifecycle/manager.go` (mirror the
 needsInputResolutions pattern; resolve it on the next activity write).
-NOT STARTED — it is an API-surface change (add
+~~NOT STARTED~~ (**superseded — see the ✅ entry below**; this paragraph is the
+original analysis, kept for its reasoning) — it is an API-surface change (add
 `NotificationType`/`Valid()`/`NeedsResolution()` case in
 `domain/notification.go`, a `NotificationView` enum + `specgen/build.go`
 `schemaNames` entry in `backend/internal/httpd/controllers/dto.go`, then
