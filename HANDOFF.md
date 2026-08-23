@@ -1118,8 +1118,8 @@ decisions.
   | Branch | Base | On `origin` | State |
   | --- | --- | --- | --- |
   | `docs/tailnet-webui-handoff` | `main` @ `11c1b5cae` | yes | the integration branch; all of W0–W5 |
-  | `fix/spawn-role-override-model-leak` | `main` | yes (`faae2bc2a`) | §11.1c 4b bullet 1 — **done + reviewed**, 2 commits, unmerged |
-  | `feat/turn-complete-notifications` | `main` | yes (`b1a9dc96c`) | §11.1c 4b bullet 2 — **implemented + reviewed**, 2 commits, unmerged |
+  | `fix/spawn-role-override-model-leak` | `main` | yes (`faae2bc2a`) | §11.1f fix 1 — **done + reviewed**; superseded by the squashed `pr/` branch below |
+  | `feat/turn-complete-notifications` | `main` | yes (`b1a9dc96c`) | §11.1f fix 2 — **done + reviewed**; superseded by the squashed `pr/` branch below |
   | `fix/tui-needs-input-notifications` | `main` | yes | **superseded** by `feat/turn-complete-notifications`; zero commits, name encodes the rejected approach |
   | `pr/spawn-role-override-harness-scope` | `main` | yes | **upstream PR #4266** — the fix, squashed, plus its end-to-end Spawn test |
   | `pr/turn-complete-notification` | `main` | yes | **upstream PR #4267** — the feature, squashed, plus notification-centre and mobile coverage |
@@ -1144,7 +1144,7 @@ decisions.
 **Gates:** G0 ✅, G0b ✅, G1 ✅, G2 ✅, G3 ✅, G4 ✅, G5 ✅, G6 ✅, G7/G7b ✅, **G8 ✅ (2026-08-23)**.
 **Every gate in §7 now passes.**
 
-**All six workstreams (W0–W5) are merged.** W6 has not started. The integration
+**W0–W5 are merged; W6 is built on its own branch (not merged).** The integration
 branch is green end to end: `frontend:typecheck` clean, renderer vitest
 **159 files / 2308 passed**, `test:e2e:renderer` **26 passed**,
 `cd backend && go build ./...` clean, `npm run lint` **0 issues**.
@@ -1420,6 +1420,129 @@ If you are writing a spec for any renderer workstream, **say this up front.**
 W2, W3 and W4 each shipped hardcoded English and each needed a correction round
 for it; naming the requirement in the spec would have avoided all three.
 
+### 11.1f The two post-gate fixes, in detail
+
+Both were found by gate testing (the G6 entry in §7 has the original symptom)
+and both are **done and open upstream**:
+
+| Fix | Upstream PR | Branch that was PR'd |
+| --- | --- | --- |
+| role-override model leak | **#4266** | `pr/spawn-role-override-harness-scope` |
+| `turn_complete` notification | **#4267** | `pr/turn-complete-notification` |
+
+The `feat/`/`fix/` branches named further down are the **pre-squash originals**;
+the `pr/*` branches above are what upstream sees. Kept in full below because the
+reasoning — especially **what was rejected and why** — is what stops someone
+re-opening either the wrong way.
+
+- **Role-override model leaks across harnesses on spawn.**
+`backend/internal/session_manager/manager.go`: `effectiveHarness` honors an
+explicit spawn harness, but `effectiveAgentConfig` applies the project role
+override's `agentConfig.model` unconditionally — so an explicit
+`claude-code` spawn inherited codex's `gpt-5.6-luna` and launched broken.
+Fix: only merge role-override agent config when the resolved harness matches
+the override's harness (or the override sets none). Needs tests in the
+`session_manager` suite.
+
+✅ **DONE.** `fix/spawn-role-override-model-leak`, 2 commits.
+`66ccc1ef5` is the fix; `faae2bc2a` closes a defect found by **independent
+review** of it: the cross-harness guard early-returned *before* the
+permission merge, so a pinned role override silently lost its
+`PermissionMode` on a harness mismatch and the project baseline was
+substituted. One direction of that substitution (role `default` over a
+baseline of `bypass-permissions`) is a **privilege escalation**.
+`PermissionMode` is an abstract enum each adapter maps onto its own
+approval flags, so it is not harness-specific — the function's own doc
+comment already said so; only the code disagreed.
+
+The original assertion could not catch it: the fixture's worker override
+set **no** permission, so reading the base value back looked like success.
+Verified by reverting the function and confirming the corrected test fails.
+**Still open:** no test drives `Manager.Spawn` end to end with a
+cross-harness override — every test calls `effectiveAgentConfig` directly.
+
+- **Finished TUI workers settle in `idle`, so no completion notification
+fires.** **Investigation 2026-08-23 — this is intended upstream behavior,
+not an adapter regression.** Both `claudecode` and `codex` map end-of-turn
+(`stop`, `idle_prompt`, `agent_completed`) to `ActivityIdle` by documented
+decision (`backend/internal/adapters/agent/{claudecode,codex}/activity.go`).
+The state model says waiting_input is "an agent at an empty prompt awaiting
+its next instruction", which literally fits an idle worker — so it *reads*
+like a bug — but **flipping it to waiting_input is wrong** because the whole
+notification/automation layer keys on `NeedsInput()`:
+- `lifecycle/reactions.go:429` suppresses `ready_to_merge` when
+  `NeedsInput()` → a finished worker that just opened a PR would never raise
+  ready_to_merge until the user sent another message;
+- `cannotNudge` (`reactions.go:592`) suppresses automated nudges while
+  NeedsInput.
+
+**Correct fix = a new notification kind (turn_complete), not reusing
+needs_input.** Key the click/alert on the `Active → Idle` transition for
+worker-kind sessions in `lifecycle/manager.go` (mirror the
+needsInputResolutions pattern; resolve it on the next activity write).
+NOT STARTED — it is an API-surface change (add
+`NotificationType`/`Valid()`/`NeedsResolution()` case in
+`domain/notification.go`, a `NotificationView` enum + `specgen/build.go`
+`schemaNames` entry in `backend/internal/httpd/controllers/dto.go`, then
+`npm run api` for `openapi.yaml` + `frontend/src/api/schema.ts`, plus
+`frontend/src/renderer` notification-center label/icon mapping and
+`packages/mobile` if it renders kinds), plus lifecycle emission/resolution
++ tests.
+
+✅ **DONE 2026-08-23** on **`feat/turn-complete-notifications`** (off main;
+supersedes `fix/tui-needs-input-notifications`, whose name encodes the
+rejected approach). 2 commits, pushed.
+
+A third commit was dropped before pushing: codex had committed its own
+`.delegate/report.md` into the branch. `.delegate/` is git-excluded (§11.1b)
+and delegate scaffolding must never ride along on a branch headed upstream —
+**check for this before pushing any delegate's branch.** Removed with
+`git rebase --onto <feat> <report-commit> <branch>`, since `rebase -i` is
+unavailable in this environment.
+
+**The predicate as built** — emit when `next.Activity.State == Idle` AND
+`prev` is one of `Active` / `WaitingInput` / `Blocked` (enumerated, so
+`Idle → Idle` cannot double-fire: claudecode maps **both** `stop` and
+`Notification(idle_prompt)` to Idle) AND `!IsTerminated` AND
+`Kind == KindWorker` AND **`Mode == SessionModeTUI`**. That last clause is
+load-bearing: chat sessions are **also** `KindWorker`, so gating on kind
+alone would fire on every chat exchange — worse than the bug. Resolution
+mirrors `needsInputResolutions` from all three call sites.
+
+**Two things beyond the original brief, both correct and worth knowing:**
+the `type IN (…)` lists in `storage/sqlite/queries/notifications.sql` are a
+**hardcoded SQL mirror of `NeedsResolution()`** — miss them and the
+notification is created but never appears in the unresolved list or count;
+and `ResolveStaleTurnCompleteNotifications` was added to
+`ReconcileResolvedNotifications`, symmetric with the needs-input query
+already there, so a daemon crash cannot strand one unresolved forever.
+
+**Verified by the orchestrator, not just reported:** `npm run api` was
+re-run and left the tree clean, so the committed `openapi.yaml` and
+`schema.ts` really are generated rather than hand-patched (nothing else in
+the suite would catch that — vitest and typecheck validate *against* the
+committed `schema.ts`). Full renderer vitest **156 files / 2274 passed**,
+`go vet` clean, `-race` clean on the changed packages, full backend suite
+clean apart from the known `~/bin/ao` failure in §7 G0.
+
+**Test-verified but never observed.** No `turn_complete` has fired in a
+real session — the daemon is built from the integration branch and this work
+is on a main-based branch, so seeing it would mean rebuilding `~/bin/ao`
+and disturbing the live G4/G5 environment. **What to watch on first real
+use is volume:** `stop` maps to Idle, so an interrupted turn notifies too,
+and it is one notification per turn. Toast suppression while the user is
+watching that session is already wired; if the notification *list* proves
+noisy, dedupe on an existing unresolved `turn_complete` for the session.
+
+**Small gaps, deliberately left:** `NotificationCenter.tsx`'s new label and
+icon mapping has no direct test (its spec file was not touched), and
+`offerRestore` (`NotificationCenter.tsx:370`) stays keyed to `needs_input`
+only — consistent with the documented rule that restore is for an agent
+*paused on input*, which a finished turn is not.
+
+**Not done:** `packages/mobile` renders kinds through a `default` fallback
+and degrades gracefully; adding a case there is optional polish.
+
 ### 11.2 Decided — do not relitigate
 
 Each of these was reached from evidence in the code, and reversing one invalidates
@@ -1544,7 +1667,7 @@ https://vibebox.goose-marlin.ts.net:8443/
 - ~~Gates G2, G4, G5, G6~~ — **passed 2026-08-23** with the operator as the
   remote-browser witness. G8 needs no human.
 
-- ~~G8, and the two critical fixes in §11.1c item 4b~~ — **all done 2026-08-23.**
+- ~~G8, and the two critical fixes~~ — **all done 2026-08-23** (detail in §11.1f).
   Every gate in §7 passes and both fixes are on pushed branches.
 
 **State as of 2026-08-23: every gate passes, every workstream W0–W6 is built and
@@ -1615,7 +1738,7 @@ What remains:
      `cross-harness launch config permissions = "auto"`. Two distinct
      assertions, two distinct messages — the test cannot pass vacuously.
   2. `turn_complete` has never been observed firing — test-verified only. Watch
-     per-turn notification volume on first real use (§11.1c 4b). **This is the
+     per-turn notification volume on first real use (§11.1f). **This is the
      one follow-up that cannot be delegated safely:** observing it means running
      a daemon built from a branch, and the daemon on this box is built from the
      integration branch and is serving the live G4/G5 tailnet environment.
