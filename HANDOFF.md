@@ -1,10 +1,10 @@
 # Agent Orchestrator: Tailnet Web Supervision
 
 **Status:** **all six workstreams (W0–W5) are built, verified and merged.** W6
-has not started. Gates **G0, G0b, G1 and G3 pass** — a browser on loopback
-renders live data and a real streaming PTY, with no Electron. What remains is
-gate verification: **G2**, then **G4** (tailnet, needs a human for `tailscale
-serve`), then G5–G8.
+has not started. Gates **G0, G0b, G1, G2 and G3 pass** — a browser on loopback
+renders live data and a real streaming PTY with no Electron, and a real spawned
+agent completed a real task on a scratch repo. What remains is gate verification:
+**G4** (tailnet, needs a human for `tailscale serve`), then G5–G8.
 
 **Starting fresh with no context? Read [§11.1](#111-what-exists-right-now)
 first** — it is the current state of the world, including what is merged, what
@@ -770,8 +770,25 @@ observed behavior. Record results in this file as you pass them.
   app-data path is touched, satisfying the CLAUDE.md hard rule.
   Two benign startup warnings, unrelated to this goal: the GitHub and GitLab
   trackers disable themselves with "no token configured".
-- **G2 One real agent.** A worker spawned by AO in this container completes a
-  small real task on a scratch repo. Not mocked.
+- **G2 One real agent.** ✅ **PASSED 2026-08-23.** A worker spawned by AO in this
+  container completes a small real task on a scratch repo. Not mocked.
+
+  Setup notes (a bare scratch repo is NOT enough): `go build -o ~/bin/ao ./cmd/ao`,
+  start `~/bin/ao daemon`, start a tmux server (`tmux new-session -d -s g0probe`),
+  and give the scratch repo an initial commit **plus an `origin` remote** (a local
+  bare repo works, with `git remote set-head origin master`). Spawn fails with
+  `DEFAULT_BRANCH_UNRESOLVED` without a remote even when project config sets
+  `defaultBranch: master` — the workspace resolves the configured branch to
+  `refs/remotes/origin/master`. Project added via `POST /api/v1/projects
+  {path,name}` (config PUT needs a `{"config":{...}}` wrapper); worker spawned via
+  `POST /api/v1/sessions {projectId,kind:"worker",harness:"claude-code",mode:"tui",prompt}`.
+
+  Observed: session `ao-g2-scratch-1` created worktree
+  `~/.ao/data/worktrees/ao-g2-scratch/ao-g2-scratch-1` on branch
+  `ao/ao-g2-scratch-1/root`, wrote correct `fizzbuzz.py` + `test_fizzbuzz.py`
+  (output verified independently for 1..30), ran its test, and committed
+  `451b723 "g2: add fizzbuzz with tests"` — unprompted, one pass, no manual
+  nudges. Session stayed alive and un-terminated afterward.
 - **G3 Web UI on loopback.** ✅ **PASSED 2026-08-22.** A browser at
   `http://127.0.0.1:3001` renders **live** data (not `mockWorkspaces`), and a
   terminal **streams live PTY output**.
@@ -943,7 +960,7 @@ the working tree is clean.
 | **W4** orchestrator surface | ✅ merged | `0a608a75a` |
 | **W6** remote directory picker | not started (W1 has merged, so it is now unblocked) | — |
 
-**Gates:** G0 ✅, G0b ✅, G1 ✅, **G3 ✅**. G2 and G4–G8 not yet run.
+**Gates:** G0 ✅, G0b ✅, G1 ✅, G2 ✅, **G3 ✅**. G4–G8 not yet run.
 
 **All six workstreams (W0–W5) are merged.** W6 has not started. The integration
 branch is green end to end: `frontend:typecheck` clean, renderer vitest
@@ -1036,10 +1053,9 @@ each**, via the `delegate` skill. Reproduce it like this:
 
 Build and integration work is **done**. What remains is gate verification.
 
-1. **G2 — one real agent.** A worker spawned by AO completes a small real task on
-   a scratch repo, not mocked. A git-init'd scratch repo already exists at
-   `/home/dev/projects/ao-g2-scratch`. Independent of everything else; do it
-   first because it validates the environment, not the new code.
+1. **G2 — one real agent.** ✅ **PASSED 2026-08-23** (see §7). Environment validated:
+   daemon rebuilt to `~/bin/ao`, tmux server restarted, scratch repo registered and
+   a `claude-code` worker completed the task unprompted.
 
 2. **G4 — tailnet.** The big one, and the first test of anything this work has
    *not* already proven. Sequence:
