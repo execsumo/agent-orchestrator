@@ -1211,14 +1211,34 @@ Build and integration work is **done**. What remains is gate verification.
      the override's harness (or the override sets none). Needs tests in the
      `session_manager` suite.
 
-   - **Finished TUI workers never raise `waiting_input`, so `needs_input`
-     notifications don't fire.** Workers completing their turn settle into derived
-     status `idle`. Per `domain/activity.go`, an agent at an empty prompt awaiting
-     its next instruction *is* `waiting_input` (sticky, renders as needs_input,
-     drives dashboard notifications). Suspect the claude-code TUI adapter's
-     end-of-turn hook mapping (`internal/adapters/agent/claudecode` hooks /
-     `ao hooks` dispatch); verify against the other TUI adapters too, and confirm
-     the notification enrichment path treats idle→needs_input correctly.
+   - **Finished TUI workers settle in `idle`, so no completion notification
+     fires.** **Investigation 2026-08-23 — this is intended upstream behavior,
+     not an adapter regression.** Both `claudecode` and `codex` map end-of-turn
+     (`stop`, `idle_prompt`, `agent_completed`) to `ActivityIdle` by documented
+     decision (`backend/internal/adapters/agent/{claudecode,codex}/activity.go`).
+     The state model says waiting_input is "an agent at an empty prompt awaiting
+     its next instruction", which literally fits an idle worker — so it *reads*
+     like a bug — but **flipping it to waiting_input is wrong** because the whole
+     notification/automation layer keys on `NeedsInput()`:
+     - `lifecycle/reactions.go:429` suppresses `ready_to_merge` when
+       `NeedsInput()` → a finished worker that just opened a PR would never raise
+       ready_to_merge until the user sent another message;
+     - `cannotNudge` (`reactions.go:592`) suppresses automated nudges while
+       NeedsInput.
+
+     **Correct fix = a new notification kind (turn_complete), not reusing
+     needs_input.** Key the click/alert on the `Active → Idle` transition for
+     worker-kind sessions in `lifecycle/manager.go` (mirror the
+     needsInputResolutions pattern; resolve it on the next activity write).
+     NOT STARTED — it is an API-surface change (add
+     `NotificationType`/`Valid()`/`NeedsResolution()` case in
+     `domain/notification.go`, a `NotificationView` enum + `specgen/build.go`
+     `schemaNames` entry in `backend/internal/httpd/controllers/dto.go`, then
+     `npm run api` for `openapi.yaml` + `frontend/src/api/schema.ts`, plus
+     `frontend/src/renderer` notification-center label/icon mapping and
+     `packages/mobile` if it renders kinds), plus lifecycle emission/resolution
+     + tests. On `fix/tui-needs-input-notifications` (off main) — currently
+     analysis-only, no code.
 
 **Before doing any of the above, re-read §7 G0b.** The verification protocol is
 the thing most likely to be forgotten and most costly to relearn.
