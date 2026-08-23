@@ -4,8 +4,10 @@
 has not started. Gates **G0–G7b all pass** — a browser on
 loopback renders live data and a real streaming PTY with no Electron, and the
 full tailnet loop works from a second device: board, terminal, chat,
-orchestrator delegation, recovery and port-drift. What remains: **G8** (the
-security suite), then the operator-critical fixes in §11.1c item 4b, then W6.
+orchestrator delegation, recovery and port-drift. **G8 (security) passed
+2026-08-23** — all 13 clauses proven by tests whose bodies were read, plus live
+checks against the running daemon. What remains: the operator-critical fixes in
+§11.1c item 4b, then W6.
 
 ⚠️ **This file, on branch `docs/tailnet-webui-handoff`, is the only authoritative
 copy.** The copies in `../agent-orchestrator-worktrees/w0`–`w5` are the
@@ -724,6 +726,27 @@ observed behavior. Record results in this file as you pass them.
   `npm run frontend:typecheck` exit 0 · renderer vitest **2272 passed** ·
   `npm run test:e2e:renderer` **25 passed**.
 
+  **⚠️ The `go test ./...` baseline no longer reproduces on this box, and this
+  project caused it (found 2026-08-23 during G8).**
+  `internal/adapters/agent/fake:TestFullLifecycleSpawnToTermination` now fails
+  with `read hook log: … events.log: no such file or directory`. The chain:
+  `fake.go:106` launches the timeline as **`sh -lc`**; the `-l` makes the login
+  shell run the profile, which prepends `/home/dev/bin` **ahead of** the stub
+  directory the test puts on `PATH`; and `~/bin/ao` now exists because §11.1a
+  put the built daemon there on 2026-08-23. So the script calls the **real**
+  `ao hooks fake …` instead of the test's shim, `$AO_HOOK_LOG` is never
+  written, and the read fails.
+
+  - **Not a regression from this work** — `backend/internal/adapters/` is
+    byte-identical to `main` (`git diff --quiet main...HEAD -- backend/internal/adapters/`).
+  - **Not reproducible on upstream CI**, which has no `~/bin/ao`.
+  - It passed at G0 only because `~/bin/ao` did not exist yet.
+  - Verify with `sh -lc 'command -v ao'` → `/home/dev/bin/ao`.
+  - **Do not "fix" it by touching the test.** If it is worth fixing at all, the
+    honest fix is `sh -lc` → `sh -c` in `fake.go:106` (a login shell has no
+    business resetting the PATH the caller built) — an upstream robustness
+    change, deliberately out of scope here and not yet made.
+
   **Toolchain drift:** the installed Go is **`go1.25.7`**, not the `go1.26.7`
   §4 claims; `go build ./...` passes on it in ~2s and no toolchain download
   occurs. Ignore §11.6's "first build is slow" warning.
@@ -937,7 +960,30 @@ observed behavior. Record results in this file as you pass them.
   serve only from a port `ao connect status` actually reports), but a monitor
   keyed on the daemon process alone would miss this state — check `ao connect
   status` or the error log.
-- **G8 Security.** Automated: CSRF rejection and cross-origin `/mux` rejection
+- **G8 Security.** ✅ **PASSED 2026-08-23.** All 13 clauses mapped to tests whose
+  **bodies were read, not just their names** — for each one, which hostile input
+  it sends and which specific rejection it asserts. `go build`, `go vet`,
+  `go test` and `go test -race` over `./internal/httpd/... ./internal/websession/...`
+  all clean. Live checks against the running daemon on `127.0.0.1:3011` matched:
+  unauthenticated `GET /` (`Accept: text/html`) → `302 /login`; `GET /api/v1/sessions`
+  → JSON `401`; `GET /login` → `200`; every `lanControlBlockedPrefixes` entry →
+  `404` **even with a valid Bearer credential**; Bearer-authenticated API → `200`.
+
+  **One coverage gap was found and closed** (commit `4745e0681`):
+  `web_session_test.go:TestSessionRevocationOnPasswordRegeneration` calls
+  `websession.Store.RevokeAll()` **directly**, so it proves the store works but
+  would pass identically if `BridgeService` never wired `RevokeAllSessions` up.
+  `controllers/mobile_test.go:TestRegenerateInvokesRevokeAllSessions` and
+  `TestDisableInvokesRevokeAllSessions` now cover the causal path. **This is the
+  failure mode to look for when auditing any gate** — a test that exercises the
+  primitive instead of the path production takes.
+
+  Note on the CSWSH rejection tests: they assert only `err != nil` on the
+  upgrade, which alone could pass vacuously on a broken fixture. They are sound
+  because each is **paired** with a same-origin accept test that would fail if
+  the fixture were misconfigured. Keep the pairs together.
+
+  Original clause list, for reference — automated: CSRF rejection and cross-origin `/mux` rejection
   **under both cookie and identity auth** (§5.7 — identity has no `SameSite`
   backstop, so this is the whole defense), lockout after 5 bad passwords **and
   against a rotating `X-Forwarded-For`** (§5.4b), every
@@ -1042,8 +1088,8 @@ of **2026-08-22**.
 ### 11.1 What exists right now
 
 **State as of 2026-08-23, end of session.** All six workstreams are merged and
-the working tree is clean. Gates **G0–G7b all pass**; only **G8** remains, then
-the operator-critical fixes in §11.1c item 4b.
+the working tree is clean. **Gates G0–G8 all pass** as of 2026-08-23. What
+remains is the operator-critical fixes in §11.1c item 4b, then W6.
 
 - Branch `docs/tailnet-webui-handoff`, forked from `main` at `11c1b5cae`.
   Integration head at the break: **`ff3fe0e06`** (this commit's parent chain
@@ -1077,7 +1123,8 @@ the operator-critical fixes in §11.1c item 4b.
 | **W4** orchestrator surface | ✅ merged | `0a608a75a` |
 | **W6** remote directory picker | not started (W1 has merged, so it is now unblocked) | — |
 
-**Gates:** G0 ✅, G0b ✅, G1 ✅, G2 ✅, G3 ✅, G4 ✅, G5 ✅, G6 ✅, **G7/G7b ✅**. G8 not yet run.
+**Gates:** G0 ✅, G0b ✅, G1 ✅, G2 ✅, G3 ✅, G4 ✅, G5 ✅, G6 ✅, G7/G7b ✅, **G8 ✅ (2026-08-23)**.
+**Every gate in §7 now passes.**
 
 **All six workstreams (W0–W5) are merged.** W6 has not started. The integration
 branch is green end to end: `frontend:typecheck` clean, renderer vitest
