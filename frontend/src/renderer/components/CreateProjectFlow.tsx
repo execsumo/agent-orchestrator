@@ -114,26 +114,36 @@ export function CreateProjectFlow({
 		setSelectedKind(kind);
 		setIsChoosingPath(true);
 		try {
-			const path =
-				presetPath ??
-				(await aoBridge.app.chooseDirectory(
-					kind === "workspace" ? t("createProject.chooseWorkspace") : t("createProject.chooseRepo"),
-				));
-			if (path && kind === "single_repo") {
-				const preflight = await projectRepositoryPreflight(path);
-				if (preflight.blockingError) {
-					setError(preflight.blockingError);
-					setValidationScan(preflight.scan);
+			let path = presetPath;
+			if (!path) {
+				if (aoBridge.capabilities.nativeFileDialogs) {
+					path = (await aoBridge.app.chooseDirectory(
+						kind === "workspace" ? t("createProject.chooseWorkspace") : t("createProject.chooseRepo"),
+					)) ?? undefined;
+				} else {
 					setModePickerOpen(false);
 					setFolderPickerOpen(true);
+					setIsChoosingPath(false);
 					return;
 				}
-				setRepositorySetup(preflight.setupCode);
-				setRepositorySetupWarning(preflight.setupWarning);
+			}
+			if (path && kind === "single_repo") {
+				if (aoBridge.capabilities.nativeFileDialogs) {
+					const preflight = await projectRepositoryPreflight(path);
+					if (preflight.blockingError) {
+						setError(preflight.blockingError);
+						setValidationScan(preflight.scan);
+						setModePickerOpen(false);
+						setFolderPickerOpen(true);
+						return;
+					}
+					setRepositorySetup(preflight.setupCode);
+					setRepositorySetupWarning(preflight.setupWarning);
+				}
 			}
 			if (path && kind === "workspace") {
 				try {
-					const warning = await aoBridge.app.checkAncestorRepo(path);
+					const warning = aoBridge.capabilities.nativeFileDialogs ? await aoBridge.app.checkAncestorRepo(path) : null;
 					if (warning) {
 						setRepositorySetupWarning(warning);
 						setRepositorySetup("NOT_A_GIT_REPO");
@@ -156,6 +166,7 @@ export function CreateProjectFlow({
 
 	const startFlow = (presetPath?: string) => {
 		setPendingDropPath(presetPath ?? null);
+
 		if (hasModePicker) {
 			setError(null);
 			setCloneSelection(null);
@@ -211,13 +222,16 @@ export function CreateProjectFlow({
 			setSelectedPath(null);
 		} catch (err) {
 			const code = err instanceof Error && "code" in err ? (err.code as string | undefined) : undefined;
-			const message = err instanceof Error ? err.message : t("createProject.couldNotAdd");
+			let message = err instanceof Error ? err.message : t("createProject.couldNotAdd");
+			if (err && typeof err === "object" && "requestId" in err && typeof (err as any).requestId === "string") {
+				message += " (Request ID: " + (err as any).requestId + ")";
+			}
 			if (!cloneSelection && selectedKind === "single_repo" && isRepositorySetupRecoveryCode(code)) {
 				setRepositorySetup(code);
 			}
 			setError(message);
 			if (hasModePicker && !cloneSelection) {
-				if (shouldScanCreateFailure(message)) {
+				if (shouldScanCreateFailure(message) && aoBridge.capabilities.nativeFileDialogs) {
 					try {
 						const scan = await aoBridge.app.scanImportFolder({
 							path: selectedPath,
@@ -318,6 +332,7 @@ export function CreateProjectFlow({
 						disabled={isBusy}
 						error={error}
 						kind={selectedKind}
+						nativeFileDialogs={aoBridge.capabilities.nativeFileDialogs}
 						open={folderPickerOpen}
 						scan={validationScan}
 						onBack={() => {
@@ -328,7 +343,7 @@ export function CreateProjectFlow({
 								window.requestAnimationFrame(() => setModePickerOpen(true));
 							}
 						}}
-						onChooseFolder={() => void chooseDirectory(selectedKind)}
+						onChooseFolder={(path?: string) => void chooseDirectory(selectedKind, path)}
 						onOpenChange={(open) => {
 							if (!isBusy) {
 								setFolderPickerOpen(open);
@@ -340,6 +355,31 @@ export function CreateProjectFlow({
 						}}
 					/>
 				</>
+			)}
+			{!hasModePicker && (
+				<CreateProjectFolderDialog
+					disabled={isBusy}
+					error={error}
+					kind={selectedKind}
+					nativeFileDialogs={aoBridge.capabilities.nativeFileDialogs}
+					open={folderPickerOpen}
+					scan={validationScan}
+					onBack={() => {
+						setError(null);
+						setValidationScan(null);
+						setFolderPickerOpen(false);
+					}}
+					onChooseFolder={(path?: string) => void chooseDirectory(selectedKind, path)}
+					onOpenChange={(open) => {
+						if (!isBusy) {
+							setFolderPickerOpen(open);
+							if (!open) {
+								setError(null);
+								setValidationScan(null);
+							}
+						}
+					}}
+				/>
 			)}
 			<CreateProjectAgentSheet
 				action={cloneSelection ? "clone" : "create"}
@@ -526,6 +566,7 @@ function CreateProjectFolderDialog({
 	disabled,
 	error,
 	kind,
+	nativeFileDialogs,
 	onBack,
 	onChooseFolder,
 	onOpenChange,
@@ -536,8 +577,9 @@ function CreateProjectFolderDialog({
 	error: string | null;
 	kind: ProjectKind;
 	onBack: () => void;
-	onChooseFolder: () => void;
+	onChooseFolder: (path?: string) => void;
 	onOpenChange: (open: boolean) => void;
+	nativeFileDialogs?: boolean;
 	open: boolean;
 	scan: ImportFolderScan | null;
 }) {
@@ -599,7 +641,7 @@ function CreateProjectFolderDialog({
 											{isWorkspace ? t("createProject.workspaceRoot") : t("createProject.projectFolder")}
 										</div>
 									</div>
-									<Button type="button" variant="footer" disabled={disabled} onClick={onChooseFolder}>
+									<Button type="button" variant="footer" disabled={disabled} onClick={() => onChooseFolder()}>
 										{t("createProject.change")}
 									</Button>
 								</div>
@@ -639,11 +681,12 @@ function CreateProjectFolderDialog({
 								)}
 							</div>
 						) : (
+							nativeFileDialogs ? (
 							<button
 								type="button"
 								className="flex min-h-[132px] w-full flex-col items-center justify-center rounded-lg border border-dashed border-[var(--color-border-import-modal)] bg-[var(--color-bg-import-card)] p-6 text-center transition-colors hover:bg-[var(--color-bg-import-card-hover)] disabled:pointer-events-none disabled:opacity-50 sm:min-h-[160px]"
 								disabled={disabled}
-								onClick={onChooseFolder}
+								onClick={() => onChooseFolder()}
 							>
 								<span className="mb-4 grid size-11 place-items-center rounded-xl bg-[var(--color-bg-import-chip)] text-[var(--color-text-import-muted)]">
 									<FolderPlus className="size-5" aria-hidden="true" />
@@ -655,6 +698,37 @@ function CreateProjectFolderDialog({
 									{isWorkspace ? t("createProject.pickerWorkspaceHint") : t("createProject.pickerProjectHint")}
 								</span>
 							</button>
+							) : (
+							<form
+								className="flex flex-col gap-4 rounded-lg border border-[var(--color-border-import-modal)] bg-[var(--color-bg-import-card)] p-6"
+								onSubmit={(e) => {
+									e.preventDefault();
+									const path = new FormData(e.currentTarget).get("path")?.toString().trim();
+									if (path) onChooseFolder(path);
+								}}
+							>
+								<div className="space-y-2">
+									<label htmlFor="manualPathInput" className="text-[13px] font-semibold text-[var(--color-text-import-title)]">
+										{isWorkspace ? t("createProject.workspaceAbsolutePath") : t("createProject.projectAbsolutePath")}
+									</label>
+									<input
+										id="manualPathInput"
+										name="path"
+										type="text"
+										className="flex h-11 w-full rounded-md border border-[var(--color-border-import-modal)] bg-[var(--color-bg-import-modal)] px-3 py-2 font-mono text-[13px] text-[var(--color-text-import-title)] placeholder:text-[var(--color-text-import-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+										placeholder={t("createProject.pathPlaceholder")}
+										disabled={disabled}
+										autoFocus
+										autoComplete="off"
+									/>
+								</div>
+								<div className="flex justify-end">
+									<Button type="submit" variant="footer-primary" disabled={disabled}>
+										{t("createProject.continue")}
+									</Button>
+								</div>
+							</form>
+							)
 						)}
 						{error && !hasScan && (
 							<div
