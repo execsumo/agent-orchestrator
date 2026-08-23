@@ -3,6 +3,8 @@ package httpd
 import (
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -10,6 +12,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/attachmentstore"
 	"github.com/aoagents/agent-orchestrator/backend/internal/cdc"
 	"github.com/aoagents/agent-orchestrator/backend/internal/config"
+	"github.com/aoagents/agent-orchestrator/backend/internal/fsjail"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apispec"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
@@ -109,6 +112,7 @@ type API struct {
 	system        *controllers.SystemController
 	systemInstall *controllers.SystemInstallController
 	events        *EventsController
+	filesystem    *controllers.FileSystemController
 }
 
 // NewAPI constructs the API surface from its dependencies. cfg carries the
@@ -146,7 +150,20 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		system:        &controllers.SystemController{Checks: deps.SystemChecks},
 		systemInstall: &controllers.SystemInstallController{Installer: deps.Installer},
 		events:        &EventsController{Source: deps.CDC, Live: deps.Events},
+		filesystem: &controllers.FileSystemController{
+			Jail:        fsjail.New(cfg.FileSystemRoots),
+			HomeDir:     userHomeDir(),
+			InternalDir: filepath.Dir(cfg.DataDir),
+		},
 	}
+}
+
+func userHomeDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return home
 }
 
 // Register mounts the bounded /api/v1 REST surface. Long-lived surfaces such
@@ -179,6 +196,7 @@ func (a *API) Register(root chi.Router) {
 			a.browser.Register(r)
 			a.system.Register(r)
 			a.systemInstall.Register(r)
+			a.filesystem.Register(r)
 			// Sibling REST controllers plug in here.
 		})
 		// Long-lived streams intentionally bypass the REST timeout middleware.

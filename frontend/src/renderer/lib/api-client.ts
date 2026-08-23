@@ -65,6 +65,8 @@ const ROUTE_TEMPLATES = [
 	"/api/v1/agents/{agent}/models/refresh",
 	"/api/v1/agents/{agent}/probe",
 	"/api/v1/events",
+	"/api/v1/fs/list",
+	"/api/v1/fs/inspect",
 	"/api/v1/import",
 	"/api/v1/notifications",
 	"/api/v1/notifications/{id}",

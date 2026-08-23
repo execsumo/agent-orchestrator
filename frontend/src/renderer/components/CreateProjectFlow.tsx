@@ -20,6 +20,7 @@ import { cn } from "../lib/utils";
 import type { ProjectKind } from "../types/workspace";
 import { CreateProjectAgentSheet, type CreateProjectAgentSelection } from "./CreateProjectAgentSheet";
 import type { CloneRepositoryDetails, CloneRepositorySelection } from "./CloneRepositoryDialog";
+import { DirectoryPickerDialog } from "./DirectoryPickerDialog";
 import { Button } from "./ui/button";
 
 export type CreateProjectInput = { path: string; asWorkspace?: boolean } & CreateProjectAgentSelection;
@@ -75,6 +76,7 @@ export function CreateProjectFlow({
 	}));
 	const [cloneSelection, setCloneSelection] = useState<CloneRepositorySelection | null>(null);
 	const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+	const [directoryPickerOpen, setDirectoryPickerOpen] = useState(false);
 	const [selectedKind, setSelectedKind] = useState<ProjectKind>(mode === "workspace" ? "workspace" : "single_repo");
 	const [selectedPath, setSelectedPath] = useState<string | null>(null);
 	const [validationScan, setValidationScan] = useState<ImportFolderScan | null>(null);
@@ -128,22 +130,22 @@ export function CreateProjectFlow({
 				}
 			}
 			if (path && kind === "single_repo") {
-				if (aoBridge.capabilities.nativeFileDialogs) {
-					const preflight = await projectRepositoryPreflight(path);
-					if (preflight.blockingError) {
-						setError(preflight.blockingError);
-						setValidationScan(preflight.scan);
-						setModePickerOpen(false);
-						setFolderPickerOpen(true);
-						return;
-					}
-					setRepositorySetup(preflight.setupCode);
-					setRepositorySetupWarning(preflight.setupWarning);
+				const preflight = await projectRepositoryPreflight(path);
+				if (preflight.blockingError) {
+					setError(preflight.blockingError);
+					setValidationScan(preflight.scan);
+					setModePickerOpen(false);
+					setFolderPickerOpen(true);
+					return;
 				}
+				setRepositorySetup(preflight.setupCode);
+				setRepositorySetupWarning(preflight.setupWarning);
 			}
 			if (path && kind === "workspace") {
 				try {
-					const warning = aoBridge.capabilities.nativeFileDialogs ? await aoBridge.app.checkAncestorRepo(path) : null;
+					const warning = aoBridge.capabilities.nativeFileDialogs
+						? await aoBridge.app.checkAncestorRepo(path)
+						: (await aoBridge.app.scanImportFolder({ path, mode: "workspace" })).setupWarning;
 					if (warning) {
 						setRepositorySetupWarning(warning);
 						setRepositorySetup("NOT_A_GIT_REPO");
@@ -231,7 +233,7 @@ export function CreateProjectFlow({
 			}
 			setError(message);
 			if (hasModePicker && !cloneSelection) {
-				if (shouldScanCreateFailure(message) && aoBridge.capabilities.nativeFileDialogs) {
+				if (shouldScanCreateFailure(message)) {
 					try {
 						const scan = await aoBridge.app.scanImportFolder({
 							path: selectedPath,
@@ -323,7 +325,7 @@ export function CreateProjectFlow({
 									setSelectedPath(next.targetPath);
 									setCloneDialogOpen(false);
 								}}
-								open
+						open
 								value={cloneDetails}
 							/>
 						</Suspense>
@@ -343,7 +345,8 @@ export function CreateProjectFlow({
 								window.requestAnimationFrame(() => setModePickerOpen(true));
 							}
 						}}
-						onChooseFolder={(path?: string) => void chooseDirectory(selectedKind, path)}
+								onChooseFolder={(path?: string) => void chooseDirectory(selectedKind, path)}
+								onBrowseFolder={() => setDirectoryPickerOpen(true)}
 						onOpenChange={(open) => {
 							if (!isBusy) {
 								setFolderPickerOpen(open);
@@ -370,6 +373,7 @@ export function CreateProjectFlow({
 						setFolderPickerOpen(false);
 					}}
 					onChooseFolder={(path?: string) => void chooseDirectory(selectedKind, path)}
+					onBrowseFolder={() => setDirectoryPickerOpen(true)}
 					onOpenChange={(open) => {
 						if (!isBusy) {
 							setFolderPickerOpen(open);
@@ -381,6 +385,16 @@ export function CreateProjectFlow({
 					}}
 				/>
 			)}
+			<DirectoryPickerDialog
+				disabled={isBusy}
+				onOpenChange={setDirectoryPickerOpen}
+				onSelect={(path) => {
+					setDirectoryPickerOpen(false);
+					void chooseDirectory(selectedKind, path);
+				}}
+				open={directoryPickerOpen && !aoBridge.capabilities.nativeFileDialogs}
+				title={selectedKind === "workspace" ? t("createProject.chooseWorkspace") : t("createProject.chooseRepo")}
+			/>
 			<CreateProjectAgentSheet
 				action={cloneSelection ? "clone" : "create"}
 				error={error}
@@ -569,6 +583,7 @@ function CreateProjectFolderDialog({
 	nativeFileDialogs,
 	onBack,
 	onChooseFolder,
+	onBrowseFolder,
 	onOpenChange,
 	open,
 	scan,
@@ -578,6 +593,7 @@ function CreateProjectFolderDialog({
 	kind: ProjectKind;
 	onBack: () => void;
 	onChooseFolder: (path?: string) => void;
+	onBrowseFolder: () => void;
 	onOpenChange: (open: boolean) => void;
 	nativeFileDialogs?: boolean;
 	open: boolean;
@@ -723,9 +739,14 @@ function CreateProjectFolderDialog({
 									/>
 								</div>
 								<div className="flex justify-end">
-									<Button type="submit" variant="footer-primary" disabled={disabled}>
-										{t("createProject.continue")}
-									</Button>
+									<div className="flex flex-wrap justify-end gap-2">
+										<Button type="button" variant="footer" disabled={disabled} onClick={onBrowseFolder}>
+											{t("createProject.browseFolders")}
+										</Button>
+										<Button type="submit" variant="footer-primary" disabled={disabled}>
+											{t("createProject.continue")}
+										</Button>
+									</div>
 								</div>
 							</form>
 							)

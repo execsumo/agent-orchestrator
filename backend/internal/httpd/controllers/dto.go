@@ -17,6 +17,48 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/service/systeminstall"
 )
 
+// FSListQuery is the optional path accepted by the jailed directory listing.
+// An omitted path lists the configured roots themselves.
+type FSListQuery struct {
+	Path string `query:"path,omitempty" description:"Absolute path, or path relative to a configured root."`
+}
+
+type FSListEntry struct {
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	Kind       string `json:"kind" enum:"directory,file,symlink,unknown"`
+	Hidden     bool   `json:"hidden"`
+	Accessible bool   `json:"accessible"`
+}
+
+type FSListResponse struct {
+	Path    string        `json:"path"`
+	Entries []FSListEntry `json:"entries"`
+}
+
+type FSInspectRequest struct {
+	Path string `json:"path" minLength:"1"`
+	Mode string `json:"mode" enum:"project,workspace"`
+}
+
+type FSRepoScan struct {
+	Name         string `json:"name"`
+	Path         string `json:"path"`
+	RelativePath string `json:"relativePath"`
+	Branch       string `json:"branch"`
+	Remote       string `json:"remote"`
+	HasRemote    bool   `json:"hasRemote"`
+	Status       string `json:"status" enum:"ok,error"`
+	Reason       string `json:"reason,omitempty"`
+	NeedsGitInit bool   `json:"needsGitInit,omitempty"`
+}
+
+type FSInspectResponse struct {
+	Path         string       `json:"path"`
+	Repos        []FSRepoScan `json:"repos"`
+	SetupWarning string       `json:"setupWarning,omitempty"`
+}
+
 // HTTP response envelopes for the projects surface — the SINGLE definition of
 // each wire shape. The handlers encode these (envelope.WriteJSON), and
 // apispec.Build reflects these same types into openapi.yaml, so the served

@@ -1303,5 +1303,17 @@
 	"settings.project.autoReview": "Auto review",
 	"settings.project.autoReviewToggle": "Auto review PRs",
 	"settings.project.autoReviewDescription": "When enabled, new worker sessions will automatically review their pull requests. This can still be toggled per session after spawn.",
-	"settings.project.reviewer": "Reviewer"
+	"settings.project.reviewer": "Reviewer",
+	"createProject.browseFolders": "Browse folders",
+	"directoryPicker.back": "Back",
+	"directoryPicker.cancel": "Cancel folder picker",
+	"directoryPicker.description": "Choose a folder from the directories enabled by the daemon.",
+	"directoryPicker.empty": "No folders available here.",
+	"directoryPicker.hidden": "hidden",
+	"directoryPicker.inaccessible": "Unavailable",
+	"directoryPicker.loading": "Loading folders…",
+	"directoryPicker.roots": "Configured roots",
+	"directoryPicker.select": "Select",
+	"directoryPicker.selectCurrent": "Select this folder",
+	"directoryPicker.unavailable": "The directory picker is unavailable."
 }

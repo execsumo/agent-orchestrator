@@ -414,6 +414,63 @@ paths:
       summary: Stream CDC events with durable replay
       tags:
       - events
+  /api/v1/fs/inspect:
+    post:
+      operationId: inspectFilesystemDirectory
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FSInspectRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FSInspectResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+      summary: Inspect a configured directory for importable repositories
+      tags:
+      - filesystem
+  /api/v1/fs/list:
+    get:
+      operationId: listFilesystemDirectory
+      parameters:
+      - description: Absolute path, or path relative to a configured root.
+        in: query
+        name: path
+        schema:
+          description: Absolute path, or path relative to a configured root.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FSListResponse'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+      summary: List entries inside a configured filesystem root
+      tags:
+      - filesystem
   /api/v1/import:
     get:
       operationId: getImportStatus
@@ -6834,6 +6891,102 @@ components:
       - sourceBranchId
       - activeBranchId
       type: object
+    FSInspectRequest:
+      properties:
+        mode:
+          enum:
+          - project
+          - workspace
+          type: string
+        path:
+          minLength: 1
+          type: string
+      required:
+      - path
+      - mode
+      type: object
+    FSInspectResponse:
+      properties:
+        path:
+          type: string
+        repos:
+          items:
+            $ref: '#/components/schemas/FSRepoScan'
+          type: array
+        setupWarning:
+          type: string
+      required:
+      - path
+      - repos
+      type: object
+    FSListEntry:
+      properties:
+        accessible:
+          type: boolean
+        hidden:
+          type: boolean
+        kind:
+          enum:
+          - directory
+          - file
+          - symlink
+          - unknown
+          type: string
+        name:
+          type: string
+        path:
+          type: string
+      required:
+      - name
+      - path
+      - kind
+      - hidden
+      - accessible
+      type: object
+    FSListResponse:
+      properties:
+        entries:
+          items:
+            $ref: '#/components/schemas/FSListEntry'
+          type: array
+        path:
+          type: string
+      required:
+      - path
+      - entries
+      type: object
+    FSRepoScan:
+      properties:
+        branch:
+          type: string
+        hasRemote:
+          type: boolean
+        name:
+          type: string
+        needsGitInit:
+          type: boolean
+        path:
+          type: string
+        reason:
+          type: string
+        relativePath:
+          type: string
+        remote:
+          type: string
+        status:
+          enum:
+          - ok
+          - error
+          type: string
+      required:
+      - name
+      - path
+      - relativePath
+      - branch
+      - remote
+      - hasRemote
+      - status
+      type: object
     ImportReport:
       properties:
         dryRun:
@@ -9281,3 +9434,5 @@ tags:
 - description: Local machine readiness checks the desktop app runs before showing
     the board
   name: system
+- description: Authenticated directory enumeration confined to configured roots
+  name: filesystem

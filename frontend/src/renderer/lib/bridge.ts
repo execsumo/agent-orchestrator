@@ -1,5 +1,6 @@
 import type { AoBridge, AoCapabilities } from "../../preload";
 import { coerceUiSettings, DEFAULT_UI_SETTINGS } from "../../shared/ui-locale";
+import { apiClient, apiErrorMessage } from "./api-client";
 export type { FeatureBuild } from "../../main/feature-builds";
 
 export function createWebBridge(): AoBridge {
@@ -19,8 +20,16 @@ export function createWebBridge(): AoBridge {
 			openExternal: async (url: string) => {
 				window.open(url, "_blank", "noopener,noreferrer");
 			},
-			scanImportFolder: async ({ path }) => ({ path, repos: [] }),
-			checkAncestorRepo: async () => undefined,
+			scanImportFolder: async (input) => {
+				const { data, error } = await apiClient.POST("/api/v1/fs/inspect", { body: input });
+				if (error || !data) throw new Error(apiErrorMessage(error, "The directory could not be inspected."));
+				return data;
+			},
+			checkAncestorRepo: async (path) => {
+				const { data, error } = await apiClient.POST("/api/v1/fs/inspect", { body: { path, mode: "workspace" } });
+				if (error || !data) throw new Error(apiErrorMessage(error, "The directory could not be inspected."));
+				return data.setupWarning;
+			},
 			getPathForFile: () => "",
 			onOpenFolderPath: () => () => undefined,
 			onNewSessionShortcut: () => () => undefined,

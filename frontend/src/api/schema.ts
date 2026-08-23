@@ -157,6 +157,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/fs/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Inspect a configured directory for importable repositories */
+        post: operations["inspectFilesystemDirectory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/fs/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List entries inside a configured filesystem root */
+        get: operations["listFilesystemDirectory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/import": {
         parameters: {
             query?: never;
@@ -2312,6 +2346,40 @@ export interface components {
             state?: "queued" | "running" | "completed" | "interrupted" | "failed";
             turnId?: string;
         };
+        FSInspectRequest: {
+            /** @enum {string} */
+            mode: "project" | "workspace";
+            path: string;
+        };
+        FSInspectResponse: {
+            path: string;
+            repos: components["schemas"]["FSRepoScan"][];
+            setupWarning?: string;
+        };
+        FSListEntry: {
+            accessible: boolean;
+            hidden: boolean;
+            /** @enum {string} */
+            kind: "directory" | "file" | "symlink" | "unknown";
+            name: string;
+            path: string;
+        };
+        FSListResponse: {
+            entries: components["schemas"]["FSListEntry"][];
+            path: string;
+        };
+        FSRepoScan: {
+            branch: string;
+            hasRemote: boolean;
+            name: string;
+            needsGitInit?: boolean;
+            path: string;
+            reason?: string;
+            relativePath: string;
+            remote: string;
+            /** @enum {string} */
+            status: "ok" | "error";
+        };
         ImportReport: {
             dryRun: boolean;
             notes?: string[];
@@ -3758,6 +3826,80 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    inspectFilesystemDirectory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FSInspectRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FSInspectResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listFilesystemDirectory: {
+        parameters: {
+            query?: {
+                /** @description Absolute path, or path relative to a configured root. */
+                path?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FSListResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
