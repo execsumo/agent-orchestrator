@@ -1,15 +1,25 @@
 # Agent Orchestrator: Tailnet Web Supervision
 
-**Status (2026-08-23):** **every workstream W0–W6 is built and verified, and
-every gate G0–G8 passes.** A browser on loopback renders live data and a real
+**Status (2026-08-23, late):** **every workstream W0–W6 is built and verified,
+every gate G0–G8 passes, and the integration branch has been split into
+upstreamable branches.** A browser on loopback renders live data and a real
 streaming PTY with no Electron; the full tailnet loop works from a second
 device — board, terminal, chat, orchestrator delegation, recovery, port-drift;
-and the security suite is proven clause by clause. Both post-gate fixes are done
-and are **open as upstream PRs #4266 and #4267**, each carrying its own tests.
+and the security suite is proven clause by clause.
 
-**The build is finished. Nothing is blocking.** What is left is two operator
-decisions (branch disposition, and observing `turn_complete` in a live daemon)
-plus a short list of non-urgent follow-ups — all in **[§11.7](#117-open-items-needing-a-human)**.
+**Five upstream PRs are open:** #4266 and #4267 (the two post-gate fixes), and
+#4309, #4312, #4313 (W1, W0+W2, and W4 from the split). See the branch table in
+§11.1.
+
+⚠️ **`main` is a stale base.** The fork's `main` is **24 commits behind
+`upstream/main`** (0 ahead — a clean fast-forward). The three frontend split
+branches have already been rebased onto `upstream/main`; the **integration branch
+has not** and still sits on the old base. Anything cut from the integration
+branch today inherits that staleness — see §11.8.
+
+**The build is finished. Nothing is blocking.** What is left is one operator
+decision (observing `turn_complete` in a live daemon), the branch deletions in
+§11.7, and W3's PR which is queued behind #4312 merging.
 
 ⚠️ **This file, on branch `docs/tailnet-webui-handoff`, is the only authoritative
 copy.** The copies in `../agent-orchestrator-worktrees/w0`–`w5` are the
@@ -1107,29 +1117,34 @@ decisions.
   contains every merge below); the branch has since taken docs-only commits.
 - Remotes: `origin` = `execsumo/agent-orchestrator` (this fork),
   `upstream` = `Untrivial-ai/agent-orchestrator`.
-- **Push status (corrected 2026-08-23 — an earlier revision of this file said
-  "nothing has been pushed", which is no longer true and misled a session):**
-  every branch below is pushed to `origin`. **Two upstream pull requests are now
-  open** — #4266 and #4267 against `Untrivial-ai/agent-orchestrator` — opened
-  from the squashed `pr/*` branches. Everything else is still parked: disposition
-  of the integration branch, W6, and the fake-adapter fix is an open operator
-  decision (§11.7).
+- **Push status.** Every branch below is pushed to `origin`. **Five upstream
+  pull requests are open** against `Untrivial-ai/agent-orchestrator`.
+
+  Branches whose name starts with `pr/` are the upstreamable slices: cut from a
+  clean base, squashed to one coherent commit, no `.delegate/` scaffolding.
 
   | Branch | Base | On `origin` | State |
   | --- | --- | --- | --- |
-  | `docs/tailnet-webui-handoff` | `main` @ `11c1b5cae` | yes | the integration branch; all of W0–W5 |
-  | `fix/spawn-role-override-model-leak` | `main` | yes (`faae2bc2a`) | §11.1f fix 1 — **done + reviewed**; superseded by the squashed `pr/` branch below |
-  | `feat/turn-complete-notifications` | `main` | yes (`b1a9dc96c`) | §11.1f fix 2 — **done + reviewed**; superseded by the squashed `pr/` branch below |
-  | `fix/tui-needs-input-notifications` | `main` | yes | **superseded** by `feat/turn-complete-notifications`; zero commits, name encodes the rejected approach |
-  | `pr/spawn-role-override-harness-scope` | `main` | yes | **upstream PR #4266** — the fix, squashed, plus its end-to-end Spawn test |
-  | `pr/turn-complete-notification` | `main` | yes | **upstream PR #4267** — the feature, squashed, plus notification-centre and mobile coverage |
-  | `feat/w6-remote-directory-picker` | integration branch | yes | **W6, built and verified. In no PR** — needs the integration-branch split first |
-  | `fix/fake-adapter-login-shell` | `main` | yes | `sh -lc` → `sh -c`; upstreamable, no PR opened |
-  | `verify/g8`, `review/spawn-role-override`, `test/spawn-cross-harness-e2e`, `feat/turn-complete-followups` | — | partly | delegate working branches; their commits are already on the PR branches |
+  | `docs/tailnet-webui-handoff` | `main` @ `11c1b5cae` | yes | the integration branch; all of W0–W5. **Not rebased onto `upstream/main`** |
+  | `pr/webui-lan-serving` | `main` @ `11c1b5cae` | yes | **W1 — upstream PR #4309.** Merges clean onto `upstream/main` without a rebase |
+  | `pr/renderer-bridge-capabilities` | **`upstream/main`** | yes | **W0+W2 — upstream PR #4312.** Rebased; W2 cannot build without W0's frozen contract |
+  | `pr/project-creation-web-fallback` | **`pr/renderer-bridge-capabilities`** | yes | **W3 — stacked, deliberately in NO PR.** GitHub cannot target a base that exists only on the fork, so opening it against `main` today would duplicate all of W0+W2 in its diff. It becomes a 5-file PR the moment #4312 merges |
+  | `pr/orchestrator-destination` | **`upstream/main`** | yes | **W4 — upstream PR #4313.** Rebased |
+  | `pr/spawn-role-override-harness-scope` | `main` | yes | **upstream PR #4266** — the fix, squashed, plus its end-to-end Spawn test. Clean onto `upstream/main` |
+  | `pr/turn-complete-notification` | `main` | yes | **upstream PR #4267** — the feature, squashed, plus notification-centre and mobile coverage. Clean onto `upstream/main` |
+  | `feat/w6-remote-directory-picker` | integration branch | yes | **W6, built and verified. In no PR.** Conflicts onto `upstream/main` — but only in the ten files the split already resolved, because it carries the pre-rebase W0–W4 content |
+  | `test/w6-directory-picker-coverage` | `feat/w6-remote-directory-picker` | **no — local only** | follow-up 6: the picker's 12 new tests. Committed at `22719c53d`, **not pushed** |
+  | `fix/fake-adapter-login-shell` | `main` | yes | `sh -lc` → `sh -c`; upstreamable, no PR opened. Clean onto `upstream/main` |
+  | `feat/turn-complete-notifications`, `fix/spawn-role-override-model-leak` | `main` | yes | **pre-squash duplicates** of the two PR branches. Local and `origin` have diverged (local carries an unpushed squash); both trees are contained in the PR branches |
+  | `fix/tui-needs-input-notifications` | — | yes | **superseded**; zero commits, exactly at `main` |
+  | `verify/g8`, `review/spawn-role-override`, `test/spawn-cross-harness-e2e`, `feat/turn-complete-followups` | — | partly | delegate working branches. See the deletion report in §11.7 — `review/spawn-role-override` is **not** redundant |
 
-  Both fix branches are cut from `main`, not from the integration branch, and
-  that is **deliberate** (§10: upstreamable product fixes stay separate from
-  fork-local deployment work). Do not "correct" them onto the integration branch.
+  Every `pr/*` branch is cut from a clean base, never from the integration
+  branch, and that is **deliberate** (§10: upstreamable product work stays
+  separate from fork-local deployment glue). Do not "correct" them onto the
+  integration branch — merging a rebased `pr/*` branch back into it conflicts,
+  because the branch carries upstream's newer files and the integration branch
+  does not.
 
 | Workstream | State | Merge commit |
 | --- | --- | --- |
@@ -1189,9 +1204,12 @@ branch is green end to end: `frontend:typecheck` clean, renderer vitest
   orchestrator override = codex / gpt-5.6-luna) and sessions `ao-g2-scratch-1…7`
   (G2/G4/G6 probes; `-4/-5` terminated deliberately). Project `Scratch` is the
   old auto-created scratch workspace.
-- `frontend/package-lock.json` has a benign uncommitted 2-line change (it gained
-  `motion`, reconciling with `packages/product-ui`'s package.json during install).
-  `git checkout` of it is permission-gated here; leave it out of merges.
+- `frontend/package-lock.json` is **clean** — the working tree has no
+  uncommitted changes. (An earlier revision of this file described a stray 2-line
+  `motion` reconciliation and told you to keep it out of merges. That change is
+  gone; the instruction is dead. `motion` is declared in `main`'s
+  `frontend/package.json` already, so the lockfile delta was an install artifact
+  and was deliberately excluded from every `pr/*` branch.)
 
 ### 11.1a2 Live process state at the break (2026-08-23 end of session)
 
@@ -1203,10 +1221,15 @@ Re-checked at the close of the 2026-08-23 session:
 - **Daemon** on `127.0.0.1:3001` (`/healthz` → `200`), serving the embedded SPA,
   with the LAN listener on loopback `127.0.0.1:3011` (→ `401` unauthenticated,
   which is auth working, not a fault). Strict port on.
-- **`~/bin/ao` was built 2026-08-23 02:08 from the integration branch.** It
-  therefore does **not** contain `turn_complete`, W6, or either fix — those live
-  on branches. Rebuilding it is exactly what makes observing `turn_complete`
-  disruptive (§11.7 follow-up 2).
+- **`~/bin/ao` was built 2026-08-23 02:08 from the integration branch.** This is
+  the binary serving the live tailnet URL, and it is the answer to "what do I
+  actually get if I run AO locally": **W0–W5 and nothing else.** It does not
+  contain `turn_complete`, W6, the picker tests, either fix, or **any of
+  `upstream/main`'s 24 newer commits** (device-frame presets, Open-in-editor,
+  chat explore, syntax-highlighted diff review, terminal copy toast, …).
+  Rebuilding it is exactly what makes observing `turn_complete` disruptive
+  (§11.7 follow-up 2). §11.8 records what a build containing everything would
+  take.
 - **A tmux server** is running — required by `go test ./...` and `npm run lint`.
 - **No delegate panes.** All were closed at the end of the session; only the
   orchestrator's own pane and an unrelated `pi` pane in workspace `wA` remain.
@@ -1289,7 +1312,8 @@ parallel agents) and **§11.1d** (what delegates got wrong and how it was caught
 Those two are the most expensive things to relearn.
 
 1. **Orient, do not re-verify.** §11.1 has the branch table, §11.7 the open
-   items. Every claim of "done" in this file was checked by the orchestrator, not
+   items, and **§11.8 the upstream-drift facts** — read that one before cutting
+   any branch, because `main` is a stale base. Every claim of "done" in this file was checked by the orchestrator, not
    taken from a delegate's report — where a mutation check was used, the exact
    failure message is recorded. **Do not re-run the gates to satisfy yourself;**
    re-run one only if you are about to change the code it covers.
@@ -1671,25 +1695,38 @@ https://vibebox.goose-marlin.ts.net:8443/
 - ~~G8, and the two critical fixes~~ — **all done 2026-08-23** (detail in §11.1f).
   Every gate in §7 passes and both fixes are on pushed branches.
 
-**State as of 2026-08-23: every gate passes, every workstream W0–W6 is built and
-verified, four of the five follow-ups are closed, and two upstream PRs are open
-(#4266, #4267), each now carrying its own tests. Nothing is blocking.**
+**State as of 2026-08-23 (late): every gate passes, every workstream W0–W6 is
+built and verified, the integration branch has been split into upstreamable
+branches, five upstream PRs are open (#4266, #4267, #4309, #4312, #4313), and
+five of the six follow-ups are closed. Nothing is blocking.**
 
-**Two things are open and both are operator decisions, not undone work:**
-branch disposition (below), and observing `turn_complete` fire in a live daemon
-(follow-up 2). Do not read "four of five" as "all five".
+**Branch disposition — the decision that used to sit here — has been made and
+executed.** W1–W4 were split off the integration branch, rebased where needed,
+and PR'd; W5 stays fork-local as always intended. What is left is listed below,
+and only one item is a decision: observing `turn_complete` (follow-up 2).
 
 What remains:
 
-- **Branch disposition — the one real decision, and it is the operator's.**
-  Three branches sit on `origin` with **no PR opened on either remote**:
-  `docs/tailnet-webui-handoff` (all of W0–W5), `fix/spawn-role-override-model-leak`
-  and `feat/turn-complete-notifications`. The two fix branches are cut from
-  `main` precisely so they can go upstream independently (§10); the integration
-  branch mixes upstreamable product work with fork-local deployment glue and
-  would need splitting first. Options: PR the fix branches upstream, merge them
-  into the integration branch, or leave them parked. Nothing decays if this
-  waits.
+- **Branch deletions — waiting on the operator.** A read-only cleanup report was
+  produced with a containment proof per branch (it lives in the delegate worktree
+  at `.delegate/cleanup-report.md`; the branch table in §11.1 carries the summary).
+  Clean deletion candidates, each proven contained elsewhere:
+  `fix/tui-needs-input-notifications` (exactly at `main`), `verify/g8`,
+  `test/spawn-cross-harness-e2e`, `feat/turn-complete-followups`, the two local
+  pre-squash duplicates, and `delegate/w0`–`delegate/w5`.
+
+  **Two were examined and are NOT safe to delete:**
+  `origin/feat/turn-complete-notifications` differs from its PR ref in five
+  notification/mobile files, and `review/spawn-role-override` is not tree-identical
+  to either the fix branch or the PR branch. Recall that `git branch -D` is
+  permission-gated here (§11.1b) — recycle with `git worktree add -B` instead.
+
+- **W3's PR is queued behind #4312, deliberately.**
+  `pr/project-creation-web-fallback` is stacked on `pr/renderer-bridge-capabilities`.
+  A cross-fork PR cannot target a base that exists only on the fork, so opening it
+  against `main` today would put the whole W0+W2 capability refactor into its diff
+  a second time — the exact duplication a correction round removed. Once #4312
+  merges, rebase onto the new `upstream/main` and open it; it is then five files.
 
 - **W6 — remote directory picker.** ✅ **BUILT 2026-08-23** on
   `feat/w6-remote-directory-picker` (off the integration branch, 1 commit,
@@ -1783,24 +1820,90 @@ What remains:
      built, and it is a real Feather icon, but that package has no
      `node_modules` on this box so nothing checked it locally.
 
-  6. **`DirectoryPickerDialog.tsx` is 201 lines with exactly ONE test** — the
-     happy path ("lists jailed directories and returns a selected folder"). W6
-     added ten `directoryPicker.*` i18n keys (`unavailable`, `empty`,
-     `inaccessible`, `back`, `roots`, `loading`, `selectCurrent`, …) and every
-     one of those rendered states has a string but no assertion. The whole
-     workstream moved the renderer suite by **+1 test** (2308 → 2309), which is
-     the tell. Not a security gap — the jail is well covered — but it is the
-     third time this session a green suite has looked like coverage, so it is
-     named here rather than folded into "W6 verified".
+  6. ~~`DirectoryPickerDialog.tsx` is 201 lines with exactly ONE test~~ — ✅
+     **done 2026-08-23.** The file now has **13 tests** (was 1), on
+     `test/w6-directory-picker-coverage` (off `feat/w6-remote-directory-picker`,
+     one commit `22719c53d`, **committed locally, not pushed**).
+
+     Covers both `unavailable` paths — the request-error branch and the `.catch`
+     branch are separate code — plus `empty`, `loading`, `roots`, `back`,
+     `inaccessible`, `hidden`, `selectCurrent`, path-scoped navigation requests,
+     non-navigable file entries, and the `disabled` prop. The `back` test drives
+     two levels deep on purpose: `goBack` calls `setCurrentPath` **inside** a
+     `setHistory` updater, which StrictMode double-invokes.
+
+     **Orchestrator-verified by an independent mutation**, not by the delegate's
+     report: changing `goBack` to jump to the root instead of popping one level
+     fails exactly one test — `disables back at roots and returns two levels to
+     the previous paths` — and reverts clean. The delegate additionally reported
+     a mutation per test with a distinct failure message for each.
 
 - **Housekeeping.** Worktrees at the break: `w0` `feat/turn-complete-notifications`,
   `w1` `feat/w6-remote-directory-picker`, `w2` `fix/spawn-role-override-model-leak`,
   `w3` `feat/turn-complete-followups`, `w4` `test/spawn-cross-harness-e2e`,
-  `w5` `fix/fake-adapter-login-shell`. `verify/g8` and
-  `review/spawn-role-override` are throwaway branches with no unique commits.
-  `feat/turn-complete-notifications` and `fix/spawn-role-override-model-leak` are
-  the **pre-squash** duplicates of the two PR branches — safe to delete on
-  `origin`.
-  `fix/tui-needs-input-notifications` is superseded, has zero commits, and is
-  still on `origin`. Recall that `git branch -D` is permission-gated here
-  (§11.1b) — recycle with `git worktree add -B` instead.
+  `w5` `fix/fake-adapter-login-shell`, `split-w1234` `delegate/split-w1234` (the
+  branch-split and rebase delegate — its `.delegate/` holds the cleanup report and
+  the PR-body drafts), and `w6-picker-tests` `test/w6-directory-picker-coverage`.
+
+  Two delegate panes were left **idle and alive** at the break (`wB:pT` split/rebase,
+  `wB:pV` picker tests) so their context survives; closing them is free.
+
+### 11.8 Upstream drift, and what a build with everything would take
+
+Recorded 2026-08-23 (late). Nothing else in this file knows these facts, and they
+change what "cut a branch from `main`" means.
+
+**`main` is 24 commits behind `upstream/main` and 0 ahead** — a clean
+fast-forward. Fast-forwarding it is safe, but be clear about what it does *not*
+do: it does not touch the integration branch, does not affect any open PR (those
+live on `origin` and three are already rebased onto `upstream/main`), and does not
+change `~/bin/ao`. On its own it gives you nothing until you rebuild — and
+rebuilding from `main` alone loses all of W0–W5.
+
+Upstream's newer work overlaps this project in **28 files**, but only **10 of them
+actually conflict**: `BrowserPanel.tsx`, `ShellTopbar.tsx`, and the eight locale
+catalogs. Everything else — including `lan_listener.go`, `auth.go`,
+`openapi.yaml`, `schema.ts`, `bridge.ts`, `Sidebar.tsx`, `_shell.tsx` —
+auto-merges. Upstream's only change to `lan_listener.go` is a one-line
+`/api/v1/desktop` addition to `lanControlBlockedPrefixes`, which is semantically
+compatible with W1's decision about that list. **W1 needed no rework.**
+
+Both conflicting components were resolved during the split, and those decisions
+are recorded in the PR bodies for #4312 and #4313. In short: upstream's
+device-preset picker sits inside the component W2 renames to
+`NativeBrowserPanelView`, so it is capability-gated by construction; and
+upstream's `TopbarKillError` → `TopbarActionError` rename applies only at the two
+call sites W4 does not delete.
+
+#### What runs locally today
+
+`~/bin/ao` is the integration branch: **W0–W5 only**. Opening PRs changed nothing
+about it — a PR is a proposal to upstream, not a local install. Missing locally:
+W6, the picker tests, `turn_complete`, both fixes, and all 24 upstream commits.
+
+#### The everything-build, if it is ever wanted
+
+Base it on **`upstream/main`**, not on the integration branch. Verified with
+`git merge-tree`, every one of these applies **cleanly** to `upstream/main`:
+
+- `pr/webui-lan-serving` (W1)
+- `pr/renderer-bridge-capabilities` (W0+W2) — already rebased onto it
+- `pr/project-creation-web-fallback` (W3) — stacked on the above
+- `pr/orchestrator-destination` (W4) — already rebased onto it
+- `origin/pr/spawn-role-override-harness-scope` and `origin/pr/turn-complete-notification`
+- `fix/fake-adapter-login-shell`
+- W5's files — upstream never touches `deploy/` or W5's `docs/` paths, so the
+  fork-local deployment glue drops straight in
+
+**Two need work.** `feat/w6-remote-directory-picker` conflicts on `upstream/main`
+in exactly the ten files listed above — not because W6 is hard, but because it was
+cut from the integration branch and carries the pre-rebase W0–W4 content. Re-cut
+it on top of the rebased capabilities branch and its own contribution (`fsjail`,
+the picker, the `/api/v1/fs` routes) applies clean. `test/w6-directory-picker-coverage`
+then rides along on top of it.
+
+Do **not** try to assemble this by merging the rebased `pr/*` branches back into
+the integration branch. They now carry upstream's newer files and the integration
+branch does not, so that direction conflicts in `BrowserPanel.tsx`,
+`ShellTopbar.tsx` and all eight catalogs. Rebase the integration branch, or build
+from `upstream/main` — never merge backwards.
