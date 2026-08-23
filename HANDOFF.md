@@ -1847,8 +1847,10 @@ What remains:
      the permission early-return fails with
      `cross-harness launch config permissions = "auto"`. Two distinct
      assertions, two distinct messages — the test cannot pass vacuously.
-  2. `turn_complete` has never been observed firing — still test-verified only,
-     but **the blocker is gone.** This item used to need an operator decision
+  2. ~~`turn_complete` has never been observed firing~~ — ✅ **observed
+     2026-08-23 (late), and the observation found a real bug. See §11.10.**
+     It fires exactly once per turn, and the volume is self-limiting. The
+     historical note below is kept because it explains why this sat open: This item used to need an operator decision
      because observing it meant running a daemon built from a branch, and the
      live daemon was built from the integration branch which lacked the feature.
      **The daemon running now was built from `deploy/all-features` and contains
@@ -1992,12 +1994,7 @@ Built 2026-08-23 (late), on the operator's instruction to replace the binary and
 restart. **This is what `~/bin/ao` is now built from**, superseding §11.1a2's
 "integration branch, W0–W5 only".
 
-⚠️ **The branch head is local-only.** `origin/deploy/all-features` is at
-`7f4de1b6a`; the head is **`96eaf5b4a`**, the Open-in-editor gate below, and it
-has **never been pushed**. The fix the live tailnet deployment depends on exists
-on this box and nowhere else. Push it.
-
-**Branch `deploy/all-features`** (head `96eaf5b4a`, `origin` at `7f4de1b6a`), worktree at
+**Branch `deploy/all-features`** (head `2795115b6`, pushed), worktree at
 `../agent-orchestrator-worktrees/all-features`. It is `upstream/main` plus, in
 order: `pr/webui-lan-serving`, `pr/project-creation-web-fallback` (carrying W0+W2
 and W3), `pr/orchestrator-destination`, `origin/pr/spawn-role-override-harness-scope`,
@@ -2116,3 +2113,135 @@ still early-return a mock terminal, but keyed on `usesPreviewWorkspaceData`
 absence — which is exactly what W0 changed. `build:web` sets `VITE_AO_WEB=1`, not
 that flag, and the string `a live PTY here in the desktop app` appears **0 times**
 in the shipped bundle. The fake terminal cannot render in the web build.
+
+### 11.10 `turn_complete` observed — and the schema bug the observation found
+
+Recorded 2026-08-23 (late). §11.7 follow-up 2 asked two questions that only a
+live daemon could answer: does `turn_complete` actually fire, and is the
+per-turn volume tolerable. Both are now answered, and answering them surfaced a
+defect that every test suite had missed.
+
+#### What the observation found
+
+Driving a real turn on `ao-g2-scratch-1` (`kind=worker`, `mode=tui`,
+`active` → `idle`) produced **no notification**. The `notifications` table had
+**zero rows, ever**. The daemon log said why:
+
+```
+WARN lifecycle: notification failed session=ao-g2-scratch-1 type=turn_complete
+  err="notify store: create notification ...: constraint failed:
+       CHECK constraint failed: type IN (
+         'needs_input','ready_to_merge','pr_merged','pr_closed_unmerged') (275)"
+```
+
+**`turn_complete` reached the domain, the DTO enum, and the notification
+queries — but never the schema.** `0011_notifications.sql`'s CHECK constraint
+was never widened. The lifecycle manager emitted the intent at exactly the
+right moment; the store rejected every insert.
+
+It was invisible because notification writes are **deliberately best-effort** —
+`emitNotification` logs at WARN and swallows, because a failed notification must
+never fail the lifecycle write that produced it (`lifecycle/manager.go:961`).
+Correct design; it just meant the feature could be 100% broken and 100% green.
+
+**Why no test caught it: zero tests inserted a `turn_complete` through the real
+SQLite store.** The backend tests use fake sinks; the renderer tests use fixtures.
+`queries/notifications.sql` was updated to *read* the type, which made it look
+covered. **That is the fifth vacuous-green on this project.**
+
+#### The fix
+
+`0107_notification_turn_complete.sql` rebuilds `notifications` with the widened
+CHECK and recreates the four indexes from 0031 and 0041 (SQLite cannot alter a
+CHECK in place). Plus `TestNotificationStore_AcceptsEveryDomainNotificationType`,
+which asserts the schema accepts **every type the domain can produce**, not just
+the new one — so the next type added cannot repeat this.
+
+**Mutation-verified:** without 0107 the test fails on the `turn_complete`
+subtest alone, with the same constraint error the daemon logged. The other four
+types pass.
+
+`TestMigrationVersionLedger` also required the number be claimed in the ledger in
+the same change. **107, not 104** — upstream shipped 0104–0106, so 107 is what
+survives a rebase onto `upstream/main` without collision.
+
+Landed on `pr/turn-complete-notification` (upstream PR **#4267**, two commits
+`490618de5` + `a77a14369`) and cherry-picked onto `deploy/all-features`
+(`159eec629` + `2795115b6`, ledger conflict resolved to keep upstream's 104–106).
+
+#### Confirmed working end to end
+
+Daemon rebuilt and restarted 2026-08-23 21:47. Migration applied, all four
+indexes present, **10 sessions and 2 projects intact**. Driving a turn now
+yields:
+
+```json
+{"type": "turn_complete", "sessionId": "ao-g2-scratch-1",
+ "title": "G2 probe finished its turn",
+ "body": "Your agent finished and is waiting at an empty prompt.",
+ "target": {"kind": "session", "sessionId": "ao-g2-scratch-1"}}
+```
+
+`target.kind: "session"` confirms follow-up 5's mobile routing fix was right.
+
+**Volume — the product question — is answered: it is self-limiting.** A second
+turn while the first notification is still unread creates **no** second row.
+`idx_notifications_open_dedupe` is unique on `(session_id, type, pr_url)` where
+`status = 'unread' OR resolved_at IS NULL`, so a session can hold **at most one
+unread `turn_complete`**, regardless of turn count. No per-turn spam is possible.
+Nothing to change for #4267 on volume grounds.
+
+#### Backups before the migration
+
+Taken after a clean `ao stop` so the WAL was checkpointed (verified: no `-wal`
+file remained):
+
+- **DB:** `~/.ao/data/ao.db.pre-0107-20260823`
+- **Binary:** `~/bin/ao.pre-0107`
+
+Restoring means putting back both, as with the earlier upgrade. The older
+`ao.db.pre-upgrade-20260823` predates migrations 0104–0106 and is the deeper
+rollback.
+
+#### Test-suite facts that will otherwise cost a session
+
+Re-measured 2026-08-23 (late) on `deploy/all-features`. **`npm run test` reports
+213 files / 11 failed — and none of the failures are ours.** Do not chase them:
+
+- **10 are `src/landing/**`** — the marketing site has its own `package.json`
+  and **its dependencies were never installed on this box** (`src/landing/node_modules`
+  does not exist). They fail identically in the main checkout on the integration
+  branch, which contains none of this project's work in `landing/`.
+- **1 is `src/annotate-preload.test.ts`**, and it is a **worktree artifact**:
+  the worktree's `node_modules` is a symlink (§11.1b), so Vite refuses the
+  resolved font path — `Denied ID .../geist-latin-wght-normal.woff2`. The same
+  test **passes in the main checkout** (16 passed) where `node_modules` is real.
+
+**The honest number for the code that ships** — the renderer suite with
+`--exclude 'src/landing/**'` — is **196 files / 2697 passed, 1 skipped**, plus
+that one symlink artifact. `test:e2e:renderer` **26 passed**. `frontend:typecheck`,
+`go build`, `go vet` all clean. Backend `go test ./...`: **only** the known
+pre-existing `crush:TestCrushLocalAuthStatusDoesNotUseProviderCatalog`.
+
+This also explains the **166-vs-213 file-count discrepancy** against §11.9's
+earlier numbers: that measurement was scoped to the renderer suite; `npm run test`
+unscoped also collects `src/landing`.
+
+#### ⚠️ The `dist/index.html` trap, hit and survived
+
+§11.9 says to `git checkout --` the built `dist/index.html` after a build. Doing
+that leaves the **stub** on disk (`<script src="/index.js">`). Building the binary
+in that state embeds the stub and serves a **blank page**. The rule is really:
+`build:web` **immediately before** `go build`, then restore the stub — never
+restore-then-build. The bundle hash was unchanged this time
+(`index-Da65qtTv.js`), so **no hard refresh was needed** for this deployment.
+
+#### ⚠️ Nothing restarts the daemon on reboot
+
+`deploy/ao-daemon.service` exists but **cannot be installed here: this box has no
+systemd** — PID 1 is `sshd`. The daemon runs as a bare `nohup ~/bin/ao daemon &`.
+It survives a shell exit; it does **not** survive a reboot, and nothing brings it
+back. Re-run the §11.1a command line by hand after any restart, then confirm
+`tailscale serve status` still shows `:8443 → 127.0.0.1:3011`. This is the one
+real gap between "verified working" and "durable" — an operator decision, not a
+build task.
