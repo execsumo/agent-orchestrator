@@ -1,8 +1,10 @@
 # Agent Orchestrator: Tailnet Web Supervision
 
-**Status:** **implementation in progress.** Plan hardened against the real
-codebase 2026-08-22; W0, W5, W1 and W2 are merged, W3 and W4 are built and
-awaiting verification, W6 has not started. Gates G0, G0b and G1 pass.
+**Status:** **all six workstreams (W0–W5) are built, verified and merged.** W6
+has not started. Gates **G0, G0b, G1 and G3 pass** — a browser on loopback
+renders live data and a real streaming PTY, with no Electron. What remains is
+gate verification: **G2**, then **G4** (tailnet, needs a human for `tailscale
+serve`), then G5–G8.
 
 **Starting fresh with no context? Read [§11.1](#111-what-exists-right-now)
 first** — it is the current state of the world, including what is merged, what
@@ -922,10 +924,12 @@ of **2026-08-22**.
 
 ### 11.1 What exists right now
 
-**State as of 2026-08-22, late session.** Four of six workstreams are merged.
+**State as of 2026-08-22, end of session.** All six workstreams are merged and
+the working tree is clean.
 
 - Branch `docs/tailnet-webui-handoff`, forked from `main` at `11c1b5cae`.
-  Integration head at the time of writing: `f4eb632a9`.
+  Integration head at the break: **`ff3fe0e06`** (this commit's parent chain
+  contains every merge below).
 - Remotes: `origin` = `execsumo/agent-orchestrator` (this fork),
   `upstream` = `Untrivial-ai/agent-orchestrator`. **Nothing has been pushed.**
 
