@@ -10,21 +10,13 @@ import type { AppLocale } from "./locales";
 
 /** English is the source-of-truth catalog; keys are typed from it. */
 export const enMessages = en;
-
-// Keep untranslated keys on the English fallback path without copying new
-// English strings into the locale JSON catalogs. This preserves the catalog
-// parity contract while letting each locale fall back normally at runtime.
-function withEnglishFallback(catalog: Readonly<Record<string, string>>): Record<string, string> {
-	return { ...enMessages, ...catalog };
-}
-
-export const zhCNMessages = withEnglishFallback(zhCN);
-export const jaMessages = withEnglishFallback(ja);
-export const koMessages = withEnglishFallback(ko);
-export const esMessages = withEnglishFallback(es);
-export const frMessages = withEnglishFallback(fr);
-export const deMessages = withEnglishFallback(de);
-export const ptBRMessages = withEnglishFallback(ptBR);
+export const zhCNMessages = zhCN;
+export const jaMessages = ja;
+export const koMessages = ko;
+export const esMessages = es;
+export const frMessages = fr;
+export const deMessages = de;
+export const ptBRMessages = ptBR;
 
 export type MessageKey = keyof typeof enMessages;
 
