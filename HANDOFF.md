@@ -17,9 +17,22 @@ branches have already been rebased onto `upstream/main`; the **integration branc
 has not** and still sits on the old base. Anything cut from the integration
 branch today inherits that staleness — see §11.8.
 
-**The build is finished. Nothing is blocking.** What is left is one operator
-decision (observing `turn_complete` in a live daemon), the branch deletions in
-§11.7, and W3's PR which is queued behind #4312 merging.
+**The local daemon now runs `deploy/all-features`** — `upstream/main` plus every
+slice, both fixes, W6 and the picker tests. `~/bin/ao` was rebuilt and the daemon
+restarted 2026-08-23 17:55. See **[§11.9](#119-deployall-features--the-branch-the-local-daemon-now-runs)**
+for the assembly order, the build ordering a blank page depends on, and the
+rollback path.
+
+⚠️ **One check is OPEN at the session close and needs the operator:** nothing has
+loaded **`https://vibebox.goose-marlin.ts.net:8443/`** from a second device since
+the binary was swapped. The loopback side is verified; the tailnet loop is
+*probably* fine, not verified. **[§11.7](#117-open-items-needing-a-human)** has
+what to ask, what to check if it fails, and how to roll back.
+
+**The build is finished. Nothing else is blocking.** The rest is the branch
+deletions in §11.7, W3's PR queued behind #4312 merging, and observing
+`turn_complete` — which no longer needs a rebuild, because the running daemon has
+it.
 
 ⚠️ **This file, on branch `docs/tailnet-webui-handoff`, is the only authoritative
 copy.** The copies in `../agent-orchestrator-worktrees/w0`–`w5` are the
@@ -1134,6 +1147,7 @@ decisions.
   | `pr/turn-complete-notification` | `main` | yes | **upstream PR #4267** — the feature, squashed, plus notification-centre and mobile coverage. Clean onto `upstream/main` |
   | `feat/w6-remote-directory-picker` | integration branch | yes | **W6, built and verified. In no PR.** Conflicts onto `upstream/main` — but only in the ten files the split already resolved, because it carries the pre-rebase W0–W4 content |
   | `test/w6-directory-picker-coverage` | `feat/w6-remote-directory-picker` | **no — local only** | follow-up 6: the picker's 12 new tests. Committed at `22719c53d`, **not pushed** |
+  | `deploy/all-features` | **`upstream/main`** | yes | **what `~/bin/ao` is built from.** Everything: upstream + all five slices + both fixes + W6 + picker tests + W5's fork-local files. Fork-local; never upstreamed (§11.9) |
   | `fix/fake-adapter-login-shell` | `main` | yes | `sh -lc` → `sh -c`; upstreamable, no PR opened. Clean onto `upstream/main` |
   | `feat/turn-complete-notifications`, `fix/spawn-role-override-model-leak` | `main` | yes | **pre-squash duplicates** of the two PR branches. Local and `origin` have diverged (local carries an unpushed squash); both trees are contained in the PR branches |
   | `fix/tui-needs-input-notifications` | — | yes | **superseded**; zero commits, exactly at `main` |
@@ -1160,9 +1174,14 @@ decisions.
 **Every gate in §7 now passes.**
 
 **W0–W5 are merged; W6 is built on its own branch (not merged).** The integration
-branch is green end to end: `frontend:typecheck` clean, renderer vitest
-**159 files / 2308 passed**, `test:e2e:renderer` **26 passed**,
+branch was green end to end at the time of the split: `frontend:typecheck` clean,
+renderer vitest **159 files / 2308 passed**, `test:e2e:renderer` **26 passed**,
 `cd backend && go build ./...` clean, `npm run lint` **0 issues**.
+
+**Those numbers are the integration branch's, and it is no longer the branch that
+matters.** `deploy/all-features` is what runs locally and it measures
+**166 files / 2412 passed, 1 skipped** with e2e **26 passed** — plus one
+pre-existing upstream `crush` failure that is not ours (§11.9).
 
 ### 11.1a Environment state (differs from a clean checkout)
 
@@ -1183,8 +1202,13 @@ branch is green end to end: `frontend:typecheck` clean, renderer vitest
     AO_CONNECT_TRUST_TAILSCALE_IDENTITY=1 AO_CONNECT_ALLOWED_LOGINS=execsumo@github \
     AO_ALLOWED_ORIGINS=https://vibebox.goose-marlin.ts.net:8443 \
     AO_CLAUDE_ACP_COMMAND=/home/dev/bin/claude-acp-wrapper \
+    AO_FS_ROOTS=/home/dev/projects \
     nohup ~/bin/ao daemon > /tmp/ao-daemon.log 2>&1 &
   ```
+
+  `AO_FS_ROOTS` was added 2026-08-23 (late) and is what makes W6's directory
+  picker usable — an empty root list denies everything, so without it the feature
+  is present but inert. Drop the line to turn it off. See §11.9.
 
   These env vars are the deployment config; also documented in
   `deploy/ao-daemon.env.example`. The connect bridge is enabled (port 3011);
@@ -1221,23 +1245,28 @@ Re-checked at the close of the 2026-08-23 session:
 - **Daemon** on `127.0.0.1:3001` (`/healthz` → `200`), serving the embedded SPA,
   with the LAN listener on loopback `127.0.0.1:3011` (→ `401` unauthenticated,
   which is auth working, not a fault). Strict port on.
-- **`~/bin/ao` was built 2026-08-23 02:08 from the integration branch.** This is
-  the binary serving the live tailnet URL, and it is the answer to "what do I
-  actually get if I run AO locally": **W0–W5 and nothing else.** It does not
-  contain `turn_complete`, W6, the picker tests, either fix, or **any of
-  `upstream/main`'s 24 newer commits** (device-frame presets, Open-in-editor,
-  chat explore, syntax-highlighted diff review, terminal copy toast, …).
-  Rebuilding it is exactly what makes observing `turn_complete` disruptive
-  (§11.7 follow-up 2). §11.8 records what a build containing everything would
-  take.
+- **`~/bin/ao` was rebuilt 2026-08-23 17:52 from `deploy/all-features`** and
+  **contains everything** — `upstream/main`, all five upstreamed slices, both
+  fixes, W6, and the picker tests. Full detail, including the rollback path, is
+  in **§11.9**.
+
+  (An earlier revision of this bullet said the binary was the 02:08 build of the
+  integration branch carrying "W0–W5 and nothing else". That was true until the
+  rebuild and is now wrong; the rollback binary `~/bin/ao.prev` *is* that build.)
 - **A tmux server** is running — required by `go test ./...` and `npm run lint`.
-- **No delegate panes.** All were closed at the end of the session; only the
-  orchestrator's own pane and an unrelated `pi` pane in workspace `wA` remain.
+- **No delegate panes.** All were closed; only the orchestrator's own pane and an
+  unrelated `pi` pane in workspace `wA` remain.
 - **No stray `vite` or Playwright processes.** If e2e ever fails *wholesale*,
   check this first (§11.1d).
-- **All seven working trees are clean** — the main checkout and worktrees
-  `w0`–`w5` — and every branch is pushed. Two upstream PRs are open (#4266,
-  #4267).
+- **All working trees are clean** — the main checkout and worktrees `w0`–`w5`
+  plus `all-features` (on `deploy/all-features`). The `split-w1234`,
+  `w6-picker-tests` and `audit-all-features` worktrees were torn down; their
+  artifacts are archived at `~/projects/agent-orchestrator-artifacts/`.
+- **Every branch is pushed except one:** `test/w6-directory-picker-coverage`
+  (the picker's 13 tests, commit `22719c53d`) is **local only**. It survives in
+  the repo's git even though its worktree is gone, but it exists on no remote —
+  if this box is lost, that work is lost. Pushing it is one command.
+- **Five upstream PRs are open:** #4266, #4267, #4309, #4312, #4313.
 
 ### 11.1b Delegate infrastructure (how the fan-out is actually run)
 
@@ -1318,10 +1347,11 @@ Those two are the most expensive things to relearn.
    failure message is recorded. **Do not re-run the gates to satisfy yourself;**
    re-run one only if you are about to change the code it covers.
 
-2. **Answer the two operator questions in §11.7** — branch disposition, and
-   whether to observe `turn_complete` live. Both are decisions, not tasks. Until
-   the first is answered, W6 and the fake-adapter fix stay parked on their
-   branches with no PR.
+2. **Start with the PENDING VERIFICATION at the top of §11.7** — ask the operator
+   to open the tailnet URL from a second device. Everything else in this file is
+   done or is waiting on them; that check is the only thing standing between
+   "verified on loopback" and "verified end to end". Branch disposition is no
+   longer a question — it was decided and executed.
 
 3. **If asked to upstream more than the two open PRs**, the integration branch
    must be split first: W1–W4 are upstream candidates, W5 is fork-local
@@ -1702,10 +1732,41 @@ five of the six follow-ups are closed. Nothing is blocking.**
 
 **Branch disposition — the decision that used to sit here — has been made and
 executed.** W1–W4 were split off the integration branch, rebased where needed,
-and PR'd; W5 stays fork-local as always intended. What is left is listed below,
-and only one item is a decision: observing `turn_complete` (follow-up 2).
+and PR'd; W5 stays fork-local as always intended.
+
+**The local daemon was rebuilt from `deploy/all-features` and now contains
+everything** (§11.9). That closed follow-up 2's blocker as a side effect — see
+below.
 
 What remains:
+
+- ⚠️ **PENDING VERIFICATION — the tailnet URL from a second device.** This is the
+  one check the orchestrator cannot run, and it is **open as of the session
+  close**.
+
+  `~/bin/ao` was replaced and the daemon restarted on 2026-08-23 at 17:55. The
+  loopback side was verified — `/healthz` and `/readyz` `200`, `3011` `401`, the
+  SPA serving the real hashed bundle, both projects and all 9 sessions intact,
+  and the W6 jail holding under live probes. **`tailscale serve` was not touched**
+  and still shows `:8443 → 127.0.0.1:3011`. But nothing has loaded
+  **`https://vibebox.goose-marlin.ts.net:8443/`** from another device since the
+  swap.
+
+  **Ask the operator to open that URL and confirm** the board renders, a terminal
+  streams, and chat works. Until they do, treat the tailnet loop as *probably*
+  fine rather than verified.
+
+  If it is broken, the two most likely causes, in order:
+  1. **CORS.** `AO_ALLOWED_ORIGINS` must exactly match the origin the browser
+     sends. A mismatch shows as a **blank page**, not an error — this exact
+     failure cost a session once (commit `6b37ee5ea`).
+  2. **Port drift.** `AO_CONNECT_STRICT_PORT=1` is set, so the listener cannot
+     silently move; confirm with `~/bin/ao connect status` and check
+     `tailscale serve status` still points at the port it reports (§ W5).
+
+  **Rollback, if the new build is bad:** restore **both** `~/bin/ao.prev` **and**
+  `~/.ao/data/ao.db.pre-upgrade-20260823`. The binary alone is not enough —
+  upstream's migrations 0104–0106 have already upgraded the live database.
 
 - **Branch deletions — waiting on the operator.** A read-only cleanup report was
   produced with a containment proof per branch. The delegate worktrees have since
@@ -1778,14 +1839,20 @@ What remains:
      the permission early-return fails with
      `cross-harness launch config permissions = "auto"`. Two distinct
      assertions, two distinct messages — the test cannot pass vacuously.
-  2. `turn_complete` has never been observed firing — test-verified only. Watch
-     per-turn notification volume on first real use (§11.1f). **This is the
-     one follow-up that cannot be delegated safely:** observing it means running
-     a daemon built from a branch, and the daemon on this box is built from the
-     integration branch and is serving the live G4/G5 tailnet environment.
-     Either rebuild `~/bin/ao` and accept the disruption, or stand up a second
-     daemon on a separate `AO_DATA_DIR` and non-conflicting ports. **Needs an
-     operator decision before anyone starts.**
+  2. `turn_complete` has never been observed firing — still test-verified only,
+     but **the blocker is gone.** This item used to need an operator decision
+     because observing it meant running a daemon built from a branch, and the
+     live daemon was built from the integration branch which lacked the feature.
+     **The daemon running now was built from `deploy/all-features` and contains
+     `turn_complete`** (§11.9), so no rebuild, no second daemon, and no
+     disruption is needed.
+
+     What is left is pure observation: use a TUI worker normally and watch
+     whether a `turn_complete` notification fires once per turn, and whether the
+     per-turn volume is tolerable (§11.1f). Confirm with
+     `curl -s http://127.0.0.1:3001/api/v1/notifications`, which reads `{"notifications":[],...}`
+     on an idle box. If the volume is annoying, that is a **product** judgement
+     for upstream PR #4267, not a bug.
   3. ~~`NotificationCenter.tsx`'s new label/icon mapping has no direct test~~ —
      ✅ **done 2026-08-23**, pushed onto `pr/turn-complete-notification`
      (upstream PR #4267). Mutation-verified: deleting the `turn_complete` label
