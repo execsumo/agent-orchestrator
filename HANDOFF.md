@@ -1106,8 +1106,8 @@ remains is the operator-critical fixes in §11.1c item 4b, then W6.
   | Branch | Base | On `origin` | State |
   | --- | --- | --- | --- |
   | `docs/tailnet-webui-handoff` | `main` @ `11c1b5cae` | yes | the integration branch; all of W0–W5 |
-  | `fix/spawn-role-override-model-leak` | `main` | 1 of 2 commits | §11.1c 4b bullet 1 — **done + reviewed**, 2 commits, unmerged. `faae2bc2a` is unpushed |
-  | `feat/turn-complete-notifications` | `main` | no | §11.1c 4b bullet 2 — **implemented + reviewed**, 3 commits, unpushed |
+  | `fix/spawn-role-override-model-leak` | `main` | yes (`faae2bc2a`) | §11.1c 4b bullet 1 — **done + reviewed**, 2 commits, unmerged |
+  | `feat/turn-complete-notifications` | `main` | yes (`b1a9dc96c`) | §11.1c 4b bullet 2 — **implemented + reviewed**, 2 commits, unmerged |
   | `fix/tui-needs-input-notifications` | `main` | yes | **superseded** by `feat/turn-complete-notifications`; zero commits, name encodes the rejected approach |
   | `verify/g8`, `review/spawn-role-override` | — | no | throwaway delegate branches; no unique commits |
 
@@ -1345,7 +1345,14 @@ Build and integration work is **done**. What remains is gate verification.
 
      ✅ **DONE 2026-08-23** on **`feat/turn-complete-notifications`** (off main;
      supersedes `fix/tui-needs-input-notifications`, whose name encodes the
-     rejected approach). 3 commits.
+     rejected approach). 2 commits, pushed.
+
+     A third commit was dropped before pushing: codex had committed its own
+     `.delegate/report.md` into the branch. `.delegate/` is git-excluded (§11.1b)
+     and delegate scaffolding must never ride along on a branch headed upstream —
+     **check for this before pushing any delegate's branch.** Removed with
+     `git rebase --onto <feat> <report-commit> <branch>`, since `rebase -i` is
+     unavailable in this environment.
 
      **The predicate as built** — emit when `next.Activity.State == Idle` AND
      `prev` is one of `Active` / `WaitingInput` / `Blocked` (enumerated, so
