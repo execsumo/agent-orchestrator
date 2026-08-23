@@ -1175,8 +1175,25 @@ each**, via the `delegate` skill. Reproduce it like this:
   ```
 
   `herdr agent send` does **not** exist here — use `herdr agent prompt`. For
-  **agy**, `agent prompt` silently fails to submit; use `herdr pane run <pane>
-  "<text>"` instead. codex and claude both need their first-run trust /
+  **agy**, `agent prompt` silently fails to submit.
+
+  **Corrected 2026-08-23 against herdr 0.8.2** — an earlier revision said to use
+  `herdr pane run <pane> "<text>"` for agy. **`pane run` does not exist in this
+  build**, and neither does `pane capture`; both silently print the usage banner
+  to stdout, which looks like output and wastes a turn. The working commands are:
+
+  ```bash
+  herdr pane send-text <pane> "<prompt>"   # types into the composer
+  herdr pane send-keys <pane> enter        # agy needs this to submit
+  herdr pane wait-output <pane> --regex "." --source visible --lines 30 \
+    --timeout 2000 --raw                   # the only way to read a pane
+  ```
+
+  Also: `herdr agent start … -- --dangerously-bypass-approvals-and-sandbox` and
+  `-- --approve-for-me --sandbox workspace-write` are both **blocked by Claude
+  Code's auto-mode classifier** when the orchestrator is Claude Code. Start codex
+  bare (`herdr agent start <name> --kind codex --pane <id>`); it works, and
+  approvals are handled in-pane. codex and claude both need their first-run trust /
   bypass-permissions prompt answered with `herdr pane send-keys <pane> enter`
   (claude needs `down` first to select "Yes, I accept").
 - Vendors were spread deliberately (codex, claude, agy) so no single quota pools.
