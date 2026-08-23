@@ -1364,6 +1364,29 @@ Build and integration work is **done**. What remains is gate verification.
      `ReconcileResolvedNotifications`, symmetric with the needs-input query
      already there, so a daemon crash cannot strand one unresolved forever.
 
+     **Verified by the orchestrator, not just reported:** `npm run api` was
+     re-run and left the tree clean, so the committed `openapi.yaml` and
+     `schema.ts` really are generated rather than hand-patched (nothing else in
+     the suite would catch that — vitest and typecheck validate *against* the
+     committed `schema.ts`). Full renderer vitest **156 files / 2274 passed**,
+     `go vet` clean, `-race` clean on the changed packages, full backend suite
+     clean apart from the known `~/bin/ao` failure in §7 G0.
+
+     **Test-verified but never observed.** No `turn_complete` has fired in a
+     real session — the daemon is built from the integration branch and this work
+     is on a main-based branch, so seeing it would mean rebuilding `~/bin/ao`
+     and disturbing the live G4/G5 environment. **What to watch on first real
+     use is volume:** `stop` maps to Idle, so an interrupted turn notifies too,
+     and it is one notification per turn. Toast suppression while the user is
+     watching that session is already wired; if the notification *list* proves
+     noisy, dedupe on an existing unresolved `turn_complete` for the session.
+
+     **Small gaps, deliberately left:** `NotificationCenter.tsx`'s new label and
+     icon mapping has no direct test (its spec file was not touched), and
+     `offerRestore` (`NotificationCenter.tsx:370`) stays keyed to `needs_input`
+     only — consistent with the documented rule that restore is for an agent
+     *paused on input*, which a finished turn is not.
+
      **Not done:** `packages/mobile` renders kinds through a `default` fallback
      and degrades gracefully; adding a case there is optional polish.
 
