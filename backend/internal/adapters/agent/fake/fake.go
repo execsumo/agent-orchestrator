@@ -103,7 +103,13 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, _ ports.LaunchConfig) (cm
 	if err != nil {
 		return nil, err
 	}
-	return []string{sh, "-lc", timelineScript(phaseSleep())}, nil
+	// "-c", not "-lc". The timeline script calls `ao hooks fake <event>`, and
+	// HookPATH deliberately pins PATH with the daemon executable's directory
+	// first so that `ao` resolves to the daemon that spawned the session. A
+	// login shell sources the profile, which can prepend other directories
+	// ahead of that pin and silently redirect the hook to a different `ao`.
+	// Nothing in the timeline needs a login shell.
+	return []string{sh, "-c", timelineScript(phaseSleep())}, nil
 }
 
 // AuthStatus reports authorized ONLY when AO_FAKE_HARNESS is set to a truthy
