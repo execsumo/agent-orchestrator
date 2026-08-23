@@ -819,7 +819,7 @@ observed behavior. Record results in this file as you pass them.
   A standalone shell terminal is the cheapest way to exercise a real PTY without
   spawning an agent: `POST /api/v1/shell-terminals` returns a `handleId` the
   renderer will attach to.
-- **G4 Tailnet.** Bridge enabled, bound `127.0.0.1`, strict port on,
+- **G4 Tailnet.** ✅ **PASSED 2026-08-23** (see §7 for full detail). Bridge enabled, bound `127.0.0.1`, strict port on,
   `tailscale serve --https=8443` configured; from a **different tailnet device**:
   URL → board → live terminal → chat. With identity trust on (§5.7) there should
   be **no login prompt at all**. Then disable identity trust and confirm the
@@ -827,48 +827,46 @@ observed behavior. Record results in this file as you pass them.
   exercised. Header forwarding through the proxy is already measured (§4), so
   what this gate proves is the *application* behavior, not the transport.
 
-  > **Interim 2026-08-23 — server side verified from this node, second-device
-  > check pending.** Daemon restarted with `AO_CONNECT_BIND_HOST=127.0.0.1`,
-  > `AO_CONNECT_STRICT_PORT=1`, `AO_CONNECT_TRUST_TAILSCALE_IDENTITY=1`,
-  > `AO_CONNECT_ALLOWED_LOGINS=execsumo@github`; bridge enabled via `ao connect
-  > enable` (port 3011). Verified: listener bound `0100007F:0BC3` only (container
-  > IP refused); `tailscale serve status` shows `:443 → :8000` untouched plus
-  > `:8443 → 127.0.0.1:3011`; over `https://vibebox…ts.net:8443` the SPA serves and
-  > `/api/v1/projects` returns live data with **identity auth** (injected login);
-  > direct socket hits get JSON 401 on API, `302 → /login` on document
-  > navigation, `/login` 200; wrong password 401, correct password `204` +
-  > `HttpOnly SameSite=Strict ao_session` cookie which then authenticates API
-  > calls; cookie-authed non-GET with cross-site `Origin` → **403** (no-Origin
-  > control → 200). Remaining for the gate: a human opens the URL from a **second
-  > tailnet device**, confirms no login prompt under identity trust, exercises
-  > board → terminal → chat, then identity trust is disabled and the
-  > password+cookie path is driven in that browser too.
-  >
-  > **Root cause found for "blank white page" on first device test (2026-08-23,
-  > fixed):** `corsMiddleware` (router.go, `cfg.AllowedOrigins`) rejects any
-  > request bearing an `Origin` outside its allowlist with `403 ORIGIN_FORBIDDEN`.
-  > The SPA's own tailnet origin wasn't allowlisted, so top-level navigation
-  > loaded (no Origin header) but every `crossorigin` module-script/fetch from
-  > the browser carried `Origin: https://vibebox…ts.net:8443` → all assets 403 →
-  > blank page. **Fix:** restart the daemon with
-  > `AO_ALLOWED_ORIGINS=https://vibebox.goose-marlin.ts.net:8443` (now in
-  > `deploy/ao-daemon.env.example`). Verified asset fetch then returns `200` +
-  > correct `Access-Control-Allow-Origin`.
-  >
-  > **Board + terminal + chat verified from the second tailnet device
-  > (2026-08-23, operator-confirmed):** board renders, ticket opens, terminal
-  > streams. Chat proven end-to-end at API level too: installed
-  > `@agentclientprotocol/claude-agent-acp@0.64.2` into `~/acp-runtime`, wrapper
-  > script `~/bin/claude-acp-wrapper` (system node v22) exposed via
-  > `AO_CLAUDE_ACP_COMMAND`; chat-mode worker `ao-g2-scratch-2` replied "G4 CHAT
-  > OK" into its durable conversation. Remaining: operator sends a chat message
-  > from the remote browser, then identity trust is disabled and the
-  > password+cookie path driven in that browser. **Upstreamable follow-up (not yet
-  > done):** teach `corsMiddleware` to pass through same-origin requests
-  > (`Origin` host == `Host`) when they carry an accepted ambient credential —
-  > safe only behind auth, so it must key on AuthKind, which on the LAN listener
-  > is already set because auth wraps cors there; on the unauthenticated loopback
-  > listener it must stay strict or DNS-rebinding pages would pass Origin==Host.
+  ✅ **PASSED 2026-08-23.** Daemon env (steady state):
+  `AO_CONNECT_BIND_HOST=127.0.0.1`, `AO_CONNECT_STRICT_PORT=1`,
+  `AO_CONNECT_TRUST_TAILSCALE_IDENTITY=1`,
+  `AO_CONNECT_ALLOWED_LOGINS=execsumo@github`,
+  `AO_ALLOWED_ORIGINS=https://vibebox.goose-marlin.ts.net:8443`,
+  `AO_CLAUDE_ACP_COMMAND=/home/dev/bin/claude-acp-wrapper` (ACP adapter
+  installed at `~/acp-runtime`, wrapper uses system node). Operator confirmed
+  from a second tailnet device, identity trust on: board renders, ticket opens,
+  terminal streams, chat works — **no login prompt at any point**.
+
+  **Two issues found and resolved during the gate:**
+
+  1. **Blank white page — CORS.** `corsMiddleware` (`cfg.AllowedOrigins`,
+     router.go) rejected the SPA's own tailnet `Origin` with `403
+     ORIGIN_FORBIDDEN` on every `crossorigin` module-script fetch — top-level
+     navigation carries no `Origin`, so only the empty shell loaded. Fix:
+     `AO_ALLOWED_ORIGINS` with the exact served origin (added to
+     `deploy/ao-daemon.env.example`). **Upstreamable follow-up:** let cors pass
+     same-origin requests carrying an accepted ambient credential — must key on
+     AuthKind, which on the LAN listener is set because auth wraps cors there;
+     the unauthenticated loopback listener must stay strict or DNS-rebinding
+     pages would pass an Origin==Host check. The §11.1c CSP worry did **not**
+     materialize: `connect-src 'self'` covers the same-origin `wss://` terminal.
+  2. **Chat driver.** Headless daemon has no packaged ACP runtime; resolved via
+     `AO_CLAUDE_ACP_COMMAND` per §11.6, proven with chat-mode worker
+     `ao-g2-scratch-2` replying "G4 CHAT OK" into its durable conversation.
+
+  **Password-path validation** (identity trust temporarily disabled, then
+  restored as steady state per operator preference). Operator logged in from
+  the device through the login page. Verified through the proxy at API level:
+  wrong password `401` ×4 then `429 LOCKED_OUT` on the 5th attempt, correct
+  password refused while locked, login `204` + `HttpOnly SameSite=Strict`
+  cookie, cookie-authed API returns live data, browser-style unauthenticated
+  navigation `302 → /login`, logout (`DELETE /api/v1/web/session`) revokes the
+  cookie afterward (`authenticated:false`, protected API `401`). **UI gap:** the
+  SPA has no logout button — the DELETE route exists but no renderer code calls
+  it (follow-up).
+
+  **G7 early read:** the daemon restarted three times during this gate; both G2
+  sessions restored un-terminated each time; `tailscale serve status` untouched.
 - **G5 Orchestrator.** From that remote browser: start the orchestrator, plan,
   delegate a task, land on the spawned worker.
 - **G6 Isolation.** Two concurrent workers on separate branches/worktrees, both
@@ -1003,7 +1001,7 @@ the working tree is clean.
 | **W4** orchestrator surface | ✅ merged | `0a608a75a` |
 | **W6** remote directory picker | not started (W1 has merged, so it is now unblocked) | — |
 
-**Gates:** G0 ✅, G0b ✅, G1 ✅, G2 ✅, **G3 ✅**. G4–G8 not yet run.
+**Gates:** G0 ✅, G0b ✅, G1 ✅, G2 ✅, G3 ✅, **G4 ✅**. G5–G8 not yet run.
 
 **All six workstreams (W0–W5) are merged.** W6 has not started. The integration
 branch is green end to end: `frontend:typecheck` clean, renderer vitest
