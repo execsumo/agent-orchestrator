@@ -31,9 +31,15 @@ Open-in-editor error banner on every session view — **fixed in `96eaf5b4a`**
 bundle makes a good build look broken.
 
 **The build is finished. Nothing else is blocking.** The rest is the branch
-deletions in §11.7, W3's PR queued behind #4312 merging, and observing
-`turn_complete` — which no longer needs a rebuild, because the running daemon has
-it.
+deletions in §11.7 and W3's PR, queued behind #4312 merging.
+
+⚠️ **`turn_complete` was observed 2026-08-23 (late) and the observation found a
+real bug** — the feature fired correctly but the schema's CHECK constraint
+rejected every insert, silently, because notification writes are best-effort.
+**Fixed in `0107`**, live-confirmed, and pushed to PR #4267. Read
+**[§11.10](#1110-turn_complete-observed--and-the-schema-bug-the-observation-found)**
+— it also carries the test-suite facts (11 `npm run test` failures, none of them
+ours) and the reboot gap.
 
 ⚠️ **This file, on branch `docs/tailnet-webui-handoff`, is the only authoritative
 copy.** The copies in `../agent-orchestrator-worktrees/w0`–`w5` are the
@@ -1349,7 +1355,13 @@ Those two are the most expensive things to relearn.
    re-run one only if you are about to change the code it covers.
 
 2. **Nothing is pending verification.** The tailnet loop was confirmed end to end
-   by the operator, and the one regression it surfaced is fixed (§11.9). What
+   by the operator, and the one regression it surfaced is fixed (§11.9).
+   `turn_complete` was then observed live, which found and fixed a schema bug
+   (§11.10). **One thing has never been checked from a browser: whether a
+   notification reaches the UI over the `/api/v1/notifications/stream`
+   EventSource.** Until 21:48 on 2026-08-23 no notification had ever existed to
+   push, so those streams have only ever carried zero bytes. Drive a turn on a
+   TUI worker with the tailnet page open and watch the bell. What
    remains in §11.7 is the branch deletions and W3's PR, both waiting on the
    operator, plus observing `turn_complete` — which needs no rebuild any more.
    Branch disposition is no longer a question; it was decided and executed.
@@ -1729,7 +1741,8 @@ https://vibebox.goose-marlin.ts.net:8443/
 **State as of 2026-08-23 (late): every gate passes, every workstream W0–W6 is
 built and verified, the integration branch has been split into upstreamable
 branches, five upstream PRs are open (#4266, #4267, #4309, #4312, #4313), and
-five of the six follow-ups are closed. Nothing is blocking.**
+**all six follow-ups are closed** (the last one, `turn_complete` observation,
+found and fixed a schema bug — §11.10). Nothing is blocking.**
 
 **Branch disposition — the decision that used to sit here — has been made and
 executed.** W1–W4 were split off the integration branch, rebased where needed,
@@ -2188,8 +2201,10 @@ yields:
 turn while the first notification is still unread creates **no** second row.
 `idx_notifications_open_dedupe` is unique on `(session_id, type, pr_url)` where
 `status = 'unread' OR resolved_at IS NULL`, so a session can hold **at most one
-unread `turn_complete`**, regardless of turn count. No per-turn spam is possible.
-Nothing to change for #4267 on volume grounds.
+unread `turn_complete`** at a time. Precisely: **one notification per turn,
+suppressed while an unread one is already pending for that session.** Once the
+user reads it, the next turn creates a new one — which is the intended
+behaviour. Nothing to change for #4267 on volume grounds.
 
 #### Backups before the migration
 
