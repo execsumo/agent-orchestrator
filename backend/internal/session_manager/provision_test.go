@@ -162,7 +162,10 @@ func TestHookPATH(t *testing.T) {
 func TestEffectiveHarnessAndAgentConfig(t *testing.T) {
 	cfg := domain.ProjectConfig{
 		AgentConfig:  domain.AgentConfig{Model: "base", Mode: "low", Permissions: domain.PermissionModeAuto},
-		Worker:       domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Model: "worker", Mode: "high"}},
+		// Permissions differs from the base on purpose: with it unset, every
+		// assertion below about permissions would pass trivially by reading the
+		// base value back, whether or not the override was applied at all.
+		Worker:       domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Model: "worker", Mode: "high", Permissions: domain.PermissionModeDefault}},
 		Orchestrator: domain.RoleOverride{Harness: domain.HarnessClaudeCode},
 	}
 
@@ -181,8 +184,8 @@ func TestEffectiveHarnessAndAgentConfig(t *testing.T) {
 	// Role override merges over the base agent config when the session's harness
 	// matches the override's pinned harness (set fields win; unset keep base).
 	got := effectiveAgentConfig(domain.HarnessCodex, domain.KindWorker, cfg)
-	if got.Model != "worker" || got.Mode != "high" || got.Permissions != domain.PermissionModeAuto {
-		t.Fatalf("merged worker config = %#v, want model=worker mode=high permissions=auto", got)
+	if got.Model != "worker" || got.Mode != "high" || got.Permissions != domain.PermissionModeDefault {
+		t.Fatalf("merged worker config = %#v, want model=worker mode=high permissions=default", got)
 	}
 	// Orchestrator has no agent-config override, so the base config is used as-is.
 	if got := effectiveAgentConfig(domain.HarnessClaudeCode, domain.KindOrchestrator, cfg); got.Model != "base" {
@@ -196,9 +199,13 @@ func TestEffectiveHarnessAndAgentConfig(t *testing.T) {
 	if got := effectiveAgentConfig(domain.HarnessClaudeCode, domain.KindWorker, cfg); got.Model != "base" || got.Mode != "low" {
 		t.Fatalf("cross-harness worker config = %#v, want base model/mode (no override leak)", got)
 	}
-	// Permissions are not harness-specific and still apply across harnesses.
-	if got := effectiveAgentConfig(domain.HarnessClaudeCode, domain.KindWorker, cfg); got.Permissions != domain.PermissionModeAuto {
-		t.Fatalf("cross-harness worker permissions = %#v, want auto", got)
+	// Permissions ARE harness-agnostic, so the override's permission survives a
+	// harness mismatch even though its model and mode do not. The base is "auto"
+	// and the override is "default", so this fails if the override is dropped —
+	// unlike the earlier version of this assertion, where the override set no
+	// permission at all and reading the base back looked like success.
+	if got := effectiveAgentConfig(domain.HarnessClaudeCode, domain.KindWorker, cfg); got.Permissions != domain.PermissionModeDefault {
+		t.Fatalf("cross-harness worker permissions = %#v, want the override's default (permissions are not harness-specific)", got)
 	}
 	// An override with no pinned harness keeps its apply-unconditionally behavior.
 	unpinned := domain.ProjectConfig{

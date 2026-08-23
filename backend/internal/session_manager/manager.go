@@ -1262,15 +1262,20 @@ func roleConfigName(kind domain.SessionKind) string {
 func effectiveAgentConfig(harness domain.AgentHarness, kind domain.SessionKind, cfg domain.ProjectConfig) ports.AgentConfig {
 	merged := cfg.AgentConfig
 	override := roleOverride(kind, cfg)
-	if override.Harness != "" && override.Harness != harness {
-		return merged
+	if override.Harness == "" || override.Harness == harness {
+		if override.AgentConfig.Model != "" {
+			merged.Model = override.AgentConfig.Model
+		}
+		if override.AgentConfig.Mode != "" {
+			merged.Mode = override.AgentConfig.Mode
+		}
 	}
-	if override.AgentConfig.Model != "" {
-		merged.Model = override.AgentConfig.Model
-	}
-	if override.AgentConfig.Mode != "" {
-		merged.Mode = override.AgentConfig.Mode
-	}
+	// Permissions are harness-agnostic — PermissionMode is an abstract enum that
+	// each adapter maps onto its own agent's native approval flags — so they are
+	// applied outside the harness gate. Returning early on a mismatch would
+	// silently substitute the project baseline for the role's permission, and
+	// one direction of that substitution (role "default" over a baseline of
+	// "bypass-permissions") is a privilege escalation.
 	if override.AgentConfig.Permissions != "" {
 		merged.Permissions = override.AgentConfig.Permissions
 	}
