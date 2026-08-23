@@ -826,6 +826,23 @@ observed behavior. Record results in this file as you pass them.
   password + cookie path still works end to end — both credentials must be
   exercised. Header forwarding through the proxy is already measured (§4), so
   what this gate proves is the *application* behavior, not the transport.
+
+  > **Interim 2026-08-23 — server side verified from this node, second-device
+  > check pending.** Daemon restarted with `AO_CONNECT_BIND_HOST=127.0.0.1`,
+  > `AO_CONNECT_STRICT_PORT=1`, `AO_CONNECT_TRUST_TAILSCALE_IDENTITY=1`,
+  > `AO_CONNECT_ALLOWED_LOGINS=execsumo@github`; bridge enabled via `ao connect
+  > enable` (port 3011). Verified: listener bound `0100007F:0BC3` only (container
+  > IP refused); `tailscale serve status` shows `:443 → :8000` untouched plus
+  > `:8443 → 127.0.0.1:3011`; over `https://vibebox…ts.net:8443` the SPA serves and
+  > `/api/v1/projects` returns live data with **identity auth** (injected login);
+  > direct socket hits get JSON 401 on API, `302 → /login` on document
+  > navigation, `/login` 200; wrong password 401, correct password `204` +
+  > `HttpOnly SameSite=Strict ao_session` cookie which then authenticates API
+  > calls; cookie-authed non-GET with cross-site `Origin` → **403** (no-Origin
+  > control → 200). Remaining for the gate: a human opens the URL from a **second
+  > tailnet device**, confirms no login prompt under identity trust, exercises
+  > board → terminal → chat, then identity trust is disabled and the
+  > password+cookie path is driven in that browser too.
 - **G5 Orchestrator.** From that remote browser: start the orchestrator, plan,
   delegate a task, land on the spawned worker.
 - **G6 Isolation.** Two concurrent workers on separate branches/worktrees, both
