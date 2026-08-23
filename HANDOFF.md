@@ -1628,11 +1628,28 @@ built, reviewed and pushed. Nothing is blocking.** What remains:
   1. No test drives `Manager.Spawn` end to end with a cross-harness role
      override; every test calls `effectiveAgentConfig` directly (§11.1c 4b).
   2. `turn_complete` has never been observed firing — test-verified only. Watch
-     per-turn notification volume on first real use (§11.1c 4b).
+     per-turn notification volume on first real use (§11.1c 4b). **This is the
+     one follow-up that cannot be delegated safely:** observing it means running
+     a daemon built from a branch, and the daemon on this box is built from the
+     integration branch and is serving the live G4/G5 tailnet environment.
+     Either rebuild `~/bin/ao` and accept the disruption, or stand up a second
+     daemon on a separate `AO_DATA_DIR` and non-conflicting ports. **Needs an
+     operator decision before anyone starts.**
   3. `NotificationCenter.tsx`'s new label/icon mapping has no direct test.
-  4. `internal/adapters/agent/fake:TestFullLifecycleSpawnToTermination` fails on
-     this box because of `sh -lc` plus `~/bin/ao`; the honest fix is
-     `sh -lc` → `sh -c` in `fake.go:106` (§7 G0). Upstream-relevant, not made.
+  4. ~~`internal/adapters/agent/fake:TestFullLifecycleSpawnToTermination` fails
+     on this box because of `sh -lc` plus `~/bin/ao`~~ — ✅ **fixed 2026-08-23**
+     on `fix/fake-adapter-login-shell` (off `main`, 1 commit, not pushed).
+     It turned out to be more than a test artifact: `HookPATH` deliberately pins
+     a spawned session's PATH with the daemon executable's directory **first**,
+     so `ao hooks fake …` resolves to the daemon that spawned the session — it
+     even refuses to build the pin when the executable is not named `ao`.
+     `sh -lc` sources the login profile, which can prepend other directories
+     ahead of that pin and redirect the hook to a **different `ao` binary**. So
+     the failing test was the symptom of a real (narrow) production issue.
+     `TestGetLaunchCommandIsScriptedTimeline` pinned the `-lc` shape and was
+     updated with the reason. **`qwen` also uses `sh -lc` and was deliberately
+     left alone** — a real agent may legitimately want a login shell for
+     version-manager shims; that is a separate judgement for upstream.
   5. `packages/mobile` could render a `turn_complete` case; it degrades
      gracefully today.
 
