@@ -659,6 +659,13 @@ it created.
 - Write ADR-0003 from §3 verbatim, and note that AGENTS.md's LAN-listener rule
   should be amended to cover serving the web UI (same amendment pattern ADR-0001
   used for the loopback rule).
+  ✅ ADR-0003 landed with W5. **The AGENTS.md amendment was missed and was
+  applied separately on 2026-08-23** — W5 wrote the ADR but left the hard rule
+  in AGENTS.md describing only the Bearer/`0.0.0.0` mobile listener, which
+  actively misleads any agent reading the hard rules. It now covers the web UI,
+  the cookie and identity credentials, the configurable bind host, and the three
+  load-bearing invariants (CSRF, `/mux` origin by auth kind, loopback-only
+  identity trust).
 - Runbook: start, stop, restart, rotate password, revoke sessions, recover from a
   crashed daemon, recover from a stale serve config.
 - Limitations page: no workspace preview remotely, no native browser panel, no
