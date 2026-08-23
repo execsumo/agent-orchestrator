@@ -1306,5 +1306,17 @@
 	"inspector.usage.processedTokens": "Tokens processed",
 	"inspector.usage.processedTokensAria": "{{count}} tokens processed",
 	"inspector.usage.processedTokensUnavailable": "Processed tokens unavailable",
-	"settings.project.reviewer": "Reviewer"
+	"settings.project.reviewer": "Reviewer",
+	"createProject.browseFolders": "Browse folders",
+	"directoryPicker.back": "Back",
+	"directoryPicker.cancel": "Cancel folder picker",
+	"directoryPicker.description": "Choose a folder from the directories enabled by the daemon.",
+	"directoryPicker.empty": "No folders available here.",
+	"directoryPicker.hidden": "hidden",
+	"directoryPicker.inaccessible": "Unavailable",
+	"directoryPicker.loading": "Loading folders…",
+	"directoryPicker.roots": "Configured roots",
+	"directoryPicker.select": "Select",
+	"directoryPicker.selectCurrent": "Select this folder",
+	"directoryPicker.unavailable": "The directory picker is unavailable."
 }

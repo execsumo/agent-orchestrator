@@ -6,6 +6,7 @@ import { aoBridge } from "../lib/bridge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { DirectoryPickerDialog } from "./DirectoryPickerDialog";
 
 export type CloneRepositoryDetails = {
 	remoteUrl: string;
@@ -40,6 +41,7 @@ export default function CloneRepositoryDialog({
 	const { t } = useTranslation();
 	const [submitted, setSubmitted] = useState(false);
 	const [choosingDestination, setChoosingDestination] = useState(false);
+	const [remotePickerOpen, setRemotePickerOpen] = useState(false);
 	const [destinationPickerError, setDestinationPickerError] = useState<string | null>(null);
 	const repositoryName = repositoryNameFromGitUrl(value.remoteUrl);
 	const targetPath = repositoryName && value.destinationParent
@@ -49,6 +51,10 @@ export default function CloneRepositoryDialog({
 	const destinationError = submitted && !value.destinationParent ? t("createProject.cloneDestinationRequired") : null;
 
 	const chooseDestination = async () => {
+		if (!aoBridge.capabilities.nativeFileDialogs) {
+			setRemotePickerOpen(true);
+			return;
+		}
 		setDestinationPickerError(null);
 		setChoosingDestination(true);
 		try {
@@ -80,7 +86,8 @@ export default function CloneRepositoryDialog({
 	};
 
 	return (
-		<Dialog.Root open={open} onOpenChange={(next) => !next && !disabled && onClose()}>
+		<>
+			<Dialog.Root open={open} onOpenChange={(next) => !next && !disabled && onClose()}>
 			<Dialog.Portal>
 				<Dialog.Overlay className="dialog-overlay data-[state=open]:animate-overlay-in" />
 				<Dialog.Content className="fixed left-1/2 top-1/2 z-overlay flex max-h-[min(640px,calc(100svh-24px))] w-[min(var(--size-import-folder-dialog),calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-welcome-panel border border-[var(--color-border-import-modal)] bg-[var(--color-bg-import-modal)] p-0 text-[var(--color-text-import-title)] shadow-[var(--shadow-import-modal)] data-[state=open]:animate-modal-in">
@@ -180,8 +187,7 @@ export default function CloneRepositoryDialog({
 											}}
 										/>
 									</div>
-									{aoBridge.capabilities.nativeFileDialogs && (
-										<Button
+									<Button
 											type="button"
 											variant="footer"
 											className="h-control-form! px-4"
@@ -189,8 +195,7 @@ export default function CloneRepositoryDialog({
 											onClick={() => void chooseDestination()}
 										>
 											{choosingDestination ? t("createProject.opening") : t("createProject.cloneChoose")}
-										</Button>
-									)}
+									</Button>
 								</div>
 								{destinationError ? (
 									<p id="cloneDestinationError" className="text-pretty text-[12px] leading-5 text-destructive" role="alert">
@@ -233,6 +238,22 @@ export default function CloneRepositoryDialog({
 				</Dialog.Content>
 			</Dialog.Portal>
 		</Dialog.Root>
+		<DirectoryPickerDialog
+			disabled={disabled}
+			onOpenChange={setRemotePickerOpen}
+			onSelect={(path) => {
+			setRemotePickerOpen(false);
+			try {
+				window.localStorage.setItem(LAST_CLONE_DESTINATION_KEY, path);
+			} catch {
+				// Remembering the folder is a convenience only.
+			}
+			onChange({ ...value, destinationParent: path });
+		}}
+		open={remotePickerOpen && !aoBridge.capabilities.nativeFileDialogs}
+			title={t("createProject.cloneChooseDestination")}
+		/>
+		</>
 	);
 }
 

@@ -60,7 +60,7 @@ describe("CloneRepositoryDialog UI fallback", () => {
 		expect(screen.getByRole("textbox", { name: "Clone into" })).toHaveAttribute("readonly");
 	});
 
-	it("shows path input when nativeFileDialogs is false", () => {
+	it("shows the remote folder picker button and editable path when nativeFileDialogs is false", () => {
 		(aoBridge.capabilities as any).nativeFileDialogs = false;
 		render(
 			<CloneRepositoryDialog
@@ -71,7 +71,8 @@ describe("CloneRepositoryDialog UI fallback", () => {
 				value={{ remoteUrl: "", destinationParent: "" }}
 			/>
 		);
-		expect(screen.queryByRole("button", { name: "Choose" })).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Choose" })).toBeInTheDocument();
 		expect(screen.getByRole("textbox", { name: "Clone into" })).toBeInTheDocument();
+		expect(screen.getByRole("textbox", { name: "Clone into" })).not.toHaveAttribute("readonly");
 	});
 });

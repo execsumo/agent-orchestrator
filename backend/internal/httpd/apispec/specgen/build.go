@@ -83,6 +83,8 @@ func Build() ([]byte, error) {
 			"Target-isolated desktop browser runtime (loopback only)"),
 		*(&openapi31.Tag{Name: "system"}).WithDescription(
 			"Local machine readiness checks the desktop app runs before showing the board"),
+		*(&openapi31.Tag{Name: "filesystem"}).WithDescription(
+			"Authenticated directory enumeration confined to configured roots"),
 	}
 
 	for _, op := range operations() {
@@ -218,6 +220,12 @@ var schemaNames = map[string]string{
 	"ControllersBrowserStatusResponse":                    "BrowserStatusResponse",
 	"ControllersBrowserCommandRequest":                    "BrowserCommandRequest",
 	"ControllersBrowserCommandResponse":                   "BrowserCommandResponse",
+	"ControllersFSListQuery":                              "FSListQuery",
+	"ControllersFSListEntry":                              "FSListEntry",
+	"ControllersFSListResponse":                           "FSListResponse",
+	"ControllersFSInspectRequest":                         "FSInspectRequest",
+	"ControllersFSRepoScan":                               "FSRepoScan",
+	"ControllersFSInspectResponse":                        "FSInspectResponse",
 	"ControllersSetSessionMergePolicyRequest":             "SetSessionMergePolicyRequest",
 	"ControllersSetSessionMergePolicyResponse":            "SetSessionMergePolicyResponse",
 	"ControllersSetSessionAutoInjectReviewRequest":        "SetSessionAutoInjectReviewRequest",
@@ -470,7 +478,35 @@ func operations() []operation {
 	ops = append(ops, browserOperations()...)
 	ops = append(ops, shellTerminalOperations()...)
 	ops = append(ops, systemOperations()...)
+	ops = append(ops, filesystemOperations()...)
 	return ops
+}
+
+// filesystemOperations declares the remote directory picker routes. They are
+// intentionally not in the LAN control block: the web UI needs them on that
+// listener, while the shared auth middleware and fsjail remain mandatory gates.
+func filesystemOperations() []operation {
+	return []operation{
+		{
+			method: http.MethodGet, path: "/api/v1/fs/list", id: "listFilesystemDirectory", tag: "filesystem",
+			summary:    "List entries inside a configured filesystem root",
+			pathParams: []any{controllers.FSListQuery{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.FSListResponse{}},
+				{http.StatusNotFound, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/fs/inspect", id: "inspectFilesystemDirectory", tag: "filesystem",
+			summary: "Inspect a configured directory for importable repositories",
+			reqBody: controllers.FSInspectRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.FSInspectResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+			},
+		},
+	}
 }
 
 // systemOperations declares the startup requirements gate the desktop loading

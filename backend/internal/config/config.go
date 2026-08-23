@@ -128,6 +128,9 @@ type Config struct {
 	// AllowedOrigins are the browser origins granted CORS read access (see
 	// DefaultAllowedOrigins). Overridden by AO_ALLOWED_ORIGINS.
 	AllowedOrigins []string
+	// FileSystemRoots are the only directories the remote directory picker may
+	// enumerate. An empty list intentionally denies every filesystem request.
+	FileSystemRoots []string
 	// Telemetry controls local/remote telemetry sinks.
 	Telemetry TelemetryConfig
 	// StartupWorkingDirectory is the daemon process cwd before startup
@@ -160,6 +163,7 @@ func (c Config) Addr() string {
 //	AO_APP_RUN_ID        desktop-app launch id, set by the Electron supervisor
 //	                     (default: a fresh id minted per daemon boot)
 //	AO_ALLOWED_ORIGINS   CORS origins, comma-separated (default DefaultAllowedOrigins)
+//	AO_FS_ROOTS          remote directory-picker roots, comma-separated (default empty/deny)
 //	AO_TELEMETRY_EVENTS  local event capture off|on (default off)
 //	AO_TELEMETRY_METRICS local metric capture off|on (default off)
 //	AO_TELEMETRY_REMOTE  remote exporter off|posthog (default off)
@@ -177,6 +181,7 @@ func Load() (Config, error) {
 		ShutdownTimeout: DefaultShutdownTimeout,
 		Agent:           DefaultAgent,
 		AllowedOrigins:  DefaultAllowedOrigins,
+		FileSystemRoots: splitList(os.Getenv("AO_FS_ROOTS")),
 		Telemetry: TelemetryConfig{
 			Remote:      TelemetryRemoteOff,
 			PostHogHost: DefaultTelemetryPostHogHost,
@@ -309,6 +314,16 @@ func Load() (Config, error) {
 	cfg.DataDir = dataDir
 
 	return cfg, nil
+}
+
+func splitList(value string) []string {
+	items := make([]string, 0)
+	for _, item := range strings.Split(value, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }
 
 func parseToggleEnv(name, raw string) (bool, error) {

@@ -185,7 +185,7 @@ describe("CreateProjectFlow web fallback mode", () => {
 		}
 	});
 
-	it("skips preflight and relies on daemon validation", async () => {
+	it("runs daemon preflight before opening the agent sheet", async () => {
 		(aoBridge.capabilities as any).nativeFileDialogs = false;
 		const user = userEvent.setup();
 		const { rerender } = render(<CreateProjectFlow mode="single_repo" {...noop} openSignal={0} />);
@@ -195,7 +195,7 @@ describe("CreateProjectFlow web fallback mode", () => {
 		await user.type(input, "/fake/path{enter}");
 
 		expect(bridgeMocks.chooseDirectory).not.toHaveBeenCalled();
-		expect(bridgeMocks.scanImportFolder).not.toHaveBeenCalled();
+		expect(bridgeMocks.scanImportFolder).toHaveBeenCalledWith({ mode: "project", path: "/fake/path" });
 		
 		const sheet = await screen.findByTestId("agent-sheet");
 		expect(sheet).toHaveAttribute("data-path", "/fake/path");
