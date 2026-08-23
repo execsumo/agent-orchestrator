@@ -1157,6 +1157,27 @@ Build and integration work is **done**. What remains is gate verification.
 4. **W6** (remote directory picker) is unblocked now that W1 has merged, but it is
    deliberately second-wave. Gates matter more.
 
+4b. **Post-gate fixes the operator flagged as critical (2026-08-23).** Both were
+   found by gate testing (details in the G6 entry, §7):
+
+   - **Role-override model leaks across harnesses on spawn.**
+     `backend/internal/session_manager/manager.go`: `effectiveHarness` honors an
+     explicit spawn harness, but `effectiveAgentConfig` applies the project role
+     override's `agentConfig.model` unconditionally — so an explicit
+     `claude-code` spawn inherited codex's `gpt-5.6-luna` and launched broken.
+     Fix: only merge role-override agent config when the resolved harness matches
+     the override's harness (or the override sets none). Needs tests in the
+     `session_manager` suite.
+
+   - **Finished TUI workers never raise `waiting_input`, so `needs_input`
+     notifications don't fire.** Workers completing their turn settle into derived
+     status `idle`. Per `domain/activity.go`, an agent at an empty prompt awaiting
+     its next instruction *is* `waiting_input` (sticky, renders as needs_input,
+     drives dashboard notifications). Suspect the claude-code TUI adapter's
+     end-of-turn hook mapping (`internal/adapters/agent/claudecode` hooks /
+     `ao hooks` dispatch); verify against the other TUI adapters too, and confirm
+     the notification enrichment path treats idle→needs_input correctly.
+
 **Before doing any of the above, re-read §7 G0b.** The verification protocol is
 the thing most likely to be forgotten and most costly to relearn.
 
