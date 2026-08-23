@@ -1,9 +1,10 @@
 # Agent Orchestrator: Tailnet Web Supervision
 
 **Status:** **all six workstreams (W0–W5) are built, verified and merged.** W6
-has not started. Gates **G0, G0b, G1, G2 and G3 pass** — a browser on loopback
-renders live data and a real streaming PTY with no Electron, and a real spawned
-agent completed a real task on a scratch repo. What remains is gate verification:
+has not started. Gates **G0–G6 pass** — a browser on
+loopback renders live data and a real streaming PTY with no Electron, and the
+full tailnet loop works from a second device: board, terminal, chat,
+orchestrator delegation. What remains is gate verification:
 **G4** (tailnet, needs a human for `tailscale serve`), then G5–G8.
 
 **Starting fresh with no context? Read [§11.1](#111-what-exists-right-now)
@@ -867,10 +868,37 @@ observed behavior. Record results in this file as you pass them.
 
   **G7 early read:** the daemon restarted three times during this gate; both G2
   sessions restored un-terminated each time; `tailscale serve status` untouched.
-- **G5 Orchestrator.** From that remote browser: start the orchestrator, plan,
-  delegate a task, land on the spawned worker.
-- **G6 Isolation.** Two concurrent workers on separate branches/worktrees, both
-  supervised from the browser, no cross-talk.
+- **G5 Orchestrator.** ✅ **PASSED 2026-08-23.** From the remote tailnet browser:
+  operator started the project orchestrator, held a planning conversation,
+  delegated a task to a spawned worker, opened that worker's live terminal from
+  the board, and had the orchestrator delete/clean up the worker afterward.
+  Full delegation lifecycle observed over identity auth.
+- **G6 Isolation.** ✅ **PASSED 2026-08-23.** Two concurrent `claude-code` TUI
+  workers (`ao-g2-scratch-6`/`-7`) spawned via API on one project, each given an
+  exclusive-file task. Verified: separate worktrees under
+  `~/.ao/data/worktrees/ao-g2-scratch/`, separate branches
+  (`ao/ao-g2-scratch-{6,7}/root`), each branch exactly one commit on top of
+  `master`, and zero cross-talk — A's worktree contains no `notes-b.md`, B's no
+  `notes-a.md`. Both supervised live from the remote tailnet browser.
+
+  **Product bug found by this gate (worked around, fix upstreamable):** spawning
+  with an explicit `harness: claude-code` still merged the project worker role
+  override's `agentConfig.model` — `gpt-5.6-luna`, configured for codex — into
+  the Claude launch (`manager.go`: `effectiveHarness` correctly prefers the
+  explicit harness, but `effectiveAgentConfig` applies the override model
+  unconditionally). Claude Code launched with a Codex model id and sat broken.
+  Workaround: cleared the worker role override via `PUT /projects/{id}/config`
+  (orchestrator codex override kept — delegation works). Proper fix: only apply
+  role-override agent config when the resolved harness matches the override's
+  harness (or none was set). The first G6 pair (`-4`/`-5`) was killed because of
+  this and respawned as `-6`/`-7`.
+
+  **Observation (non-blocking):** finished TUI workers settle in derived status
+  `idle`, not `waiting_input`, so no `needs_input` notification fires when a
+  worker completes its turn. Per `domain/activity.go`, "an agent at an empty
+  prompt awaiting its next INSTRUCTION" *is* `waiting_input`; whether the
+  claude-code TUI adapter's end-of-turn hook should map there instead of idle
+  is worth checking post-gates.
 - **G7 Recovery.** Restart the daemon while logged in: sessions restore, the web
   session survives (§5.5), terminals reconnect. Then `tailscale serve status`
   still shows `:443 → 127.0.0.1:8000` untouched.
@@ -1001,7 +1029,7 @@ the working tree is clean.
 | **W4** orchestrator surface | ✅ merged | `0a608a75a` |
 | **W6** remote directory picker | not started (W1 has merged, so it is now unblocked) | — |
 
-**Gates:** G0 ✅, G0b ✅, G1 ✅, G2 ✅, G3 ✅, **G4 ✅**. G5–G8 not yet run.
+**Gates:** G0 ✅, G0b ✅, G1 ✅, G2 ✅, G3 ✅, G4 ✅, G5 ✅, **G6 ✅**. G7–G8 not yet run.
 
 **All six workstreams (W0–W5) are merged.** W6 has not started. The integration
 branch is green end to end: `frontend:typecheck` clean, renderer vitest
