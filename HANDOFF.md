@@ -1,11 +1,11 @@
 # Agent Orchestrator: Tailnet Web Supervision
 
 **Status:** **all six workstreams (W0–W5) are built, verified and merged.** W6
-has not started. Gates **G0–G7 pass** — a browser on
+has not started. Gates **G0–G7b all pass** — a browser on
 loopback renders live data and a real streaming PTY with no Electron, and the
 full tailnet loop works from a second device: board, terminal, chat,
-orchestrator delegation. What remains is gate verification:
-**G4** (tailnet, needs a human for `tailscale serve`), then G5–G8.
+orchestrator delegation, recovery and port-drift. What remains: **G8** (the
+security suite), then the operator-critical fixes in §11.1c item 4b, then W6.
 
 **Starting fresh with no context? Read [§11.1](#111-what-exists-right-now)
 first** — it is the current state of the world, including what is merged, what
@@ -1036,8 +1036,9 @@ of **2026-08-22**.
 
 ### 11.1 What exists right now
 
-**State as of 2026-08-22, end of session.** All six workstreams are merged and
-the working tree is clean.
+**State as of 2026-08-23, end of session.** All six workstreams are merged and
+the working tree is clean. Gates **G0–G7b all pass**; only **G8** remains, then
+the operator-critical fixes in §11.1c item 4b.
 
 - Branch `docs/tailnet-webui-handoff`, forked from `main` at `11c1b5cae`.
   Integration head at the break: **`ff3fe0e06`** (this commit's parent chain
@@ -1067,43 +1068,58 @@ branch is green end to end: `frontend:typecheck` clean, renderer vitest
 - **Installed.** `node_modules` at the repo root, `frontend/`, **and**
   `packages/product-ui/`. Playwright chromium downloaded. See G0's four
   prerequisites in §7 — a clean checkout does **not** pass G0 without them.
-- **A tmux server is running** (`tmux new-session -d -s g0probe`). `go test ./...`
-  and `npm run lint` fail without one.
-- **A daemon is running on `127.0.0.1:3001`** (pid recorded in
-  `~/.ao/running.json`), built from the **current integration head** with
-  `go build -o <tmp>/bin/ao ./cmd/ao`, so it **embeds the real web bundle** — this
-  is the daemon G3 was proven against. `~/.ao` holds real state (`data/ao.db`,
-  `worktrees/`) and one auto-created project, `Scratch`.
-  - If you need port 3001, stop it first (`kill` the pid in `running.json`).
-  - **The binary lives in a scratch dir that does not survive a job cleanup.** If
-    it is gone, rebuild it — and remember to rebuild **after** any `build:web`, or
-    `go:embed` keeps serving the previous bundle.
-  - **`ao` is not on `PATH`.** Every invocation in this document assumes a
-    locally-built binary.
-- **`tailscale serve --https=8443` is OFF** (operator turned it off 2026-08-22).
-  `:443 → http://127.0.0.1:8000` (Harness Asset Manager) is **untouched and
-  off-limits**. Re-apply `:8443 → 127.0.0.1:3011` only at G4, and only a human
-  can run it.
-- A scratch repo for G2 exists at `/home/dev/projects/ao-g2-scratch` (git-init'd,
-  otherwise empty).
+- **A tmux server is running** (`g0probe`). `go test ./...` and `npm run lint`
+  fail without one.
+- **`ao` binary at `~/bin/ao`** (durable location), built from the integration
+  head with `go build -o ~/bin/ao ./cmd/ao` — it embeds the real web bundle.
+  Rebuild **after** any `build:web`, or `go:embed` keeps serving the previous
+  bundle. Not on PATH; invoke as `~/bin/ao`.
+- **A daemon is running on `127.0.0.1:3001`** with the full G4 env — to restart
+  it identically:
+
+  ```bash
+  cd ~ && AO_CONNECT_BIND_HOST=127.0.0.1 AO_CONNECT_STRICT_PORT=1 \
+    AO_CONNECT_TRUST_TAILSCALE_IDENTITY=1 AO_CONNECT_ALLOWED_LOGINS=execsumo@github \
+    AO_ALLOWED_ORIGINS=https://vibebox.goose-marlin.ts.net:8443 \
+    AO_CLAUDE_ACP_COMMAND=/home/dev/bin/claude-acp-wrapper \
+    nohup ~/bin/ao daemon > /tmp/ao-daemon.log 2>&1 &
+  ```
+
+  These env vars are the deployment config; also documented in
+  `deploy/ao-daemon.env.example`. The connect bridge is enabled (port 3011);
+  connection password via `~/bin/ao connect status`.
+- **ACP chat runtime installed** at `~/acp-runtime`
+  (`@agentclientprotocol/claude-agent-acp@0.64.2` via `npm ci`), exposed through
+  wrapper script `~/bin/claude-acp-wrapper` (system node v22). Chat works for
+  claude-code sessions; codex chat uses its native app-server.
+- **`tailscale serve --https=8443 → http://127.0.0.1:3011` is ON** (operator-run,
+  2026-08-23). `:443 → http://127.0.0.1:8000` (Harness Asset Manager) remains
+  **untouched and off-limits**.
+- **Live tailnet URL:** `https://vibebox.goose-marlin.ts.net:8443/` — verified
+  working from a second device (board, terminals, chat, orchestrator).
+- **AO state (`~/.ao`) has real content:** project `ao-g2-scratch`
+  (`/home/dev/projects/ao-g2-scratch`, origin = local bare repo
+  `~/projects/ao-g2-origin.git`, defaultBranch master, worker override cleared,
+  orchestrator override = codex / gpt-5.6-luna) and sessions `ao-g2-scratch-1…7`
+  (G2/G4/G6 probes; `-4/-5` terminated deliberately). Project `Scratch` is the
+  old auto-created scratch workspace.
 - `frontend/package-lock.json` has a benign uncommitted 2-line change (it gained
   `motion`, reconciling with `packages/product-ui`'s package.json during install).
   `git checkout` of it is permission-gated here; leave it out of merges.
 
-### 11.1a2 Live process state at the break (2026-08-22 end of session)
+### 11.1a2 Live process state at the break (2026-08-23 end of session)
 
 Nothing here is load-bearing — a new session can kill all of it — but knowing
 what is running avoids confusion:
 
-- **Daemon** on `127.0.0.1:3001`, healthy, serving the embedded SPA.
-- **No stray `vite` or Playwright processes.** Confirmed zero. If e2e ever fails
-  *wholesale*, re-check this first (§11.1d).
+- **Daemon** on `127.0.0.1:3001`, healthy, serving the embedded SPA and the LAN
+  listener on loopback `127.0.0.1:3011` (strict port on).
+- **No stray `vite` or Playwright processes.** If e2e ever fails *wholesale*,
+  re-check this first (§11.1d).
 - **A tmux server** (`g0probe`) — required by `go test ./...` and `npm run lint`.
-- **Four idle herdr delegate panes** (`w1`–`w4`) in workspace `wB`, each in its
-  worktree with its work already merged. They are **finished**; close them with
-  `herdr pane close <id>` (highest id first — ids compact on close). Their
-  worktrees and `delegate/*` branches can stay; they cost nothing and `git
-  branch -D` is permission-gated here anyway.
+- Old herdr delegate panes (`w1`–`w4`) from the build fan-out may still exist in
+  workspace `wB`; their work is merged. Close with `herdr pane close <id>`
+  (highest id first); worktrees and `delegate/*` branches can stay.
 - **Working tree clean**, everything committed on `docs/tailnet-webui-handoff`.
   **Nothing has been pushed** to `origin`.
 
@@ -1366,18 +1382,17 @@ https://vibebox.goose-marlin.ts.net:8443/
 
 ### 11.7 Open items needing a human
 
-- ~~Turn the `:8443` probe serve off (or repoint it)~~ — **decided 2026-08-22:
-  turn it OFF now**, and re-apply it at G4 once a daemon is actually listening on
-  `3011`. Agents cannot run `tailscale serve`, so the operator runs:
-
-  ```bash
-  tailscale serve --https=8443 off
-  tailscale serve status   # confirm :443 → http://127.0.0.1:8000 is untouched
-  ```
+- ~~Re-apply `tailscale serve --https=8443 → 127.0.0.1:3011` at G4~~ — **done
+  2026-08-23**; verified live from a second device (G4 passed). `:443 →
+  http://127.0.0.1:8000` untouched throughout.
 
 - ~~Decide whether `AO_CONNECT_ALLOWED_LOGINS` is just `execsumo@github` or
   wider.~~ — **decided 2026-08-22: `execsumo@github`** (single operator). An empty
   allowlist still means deny-everyone, and "any tailnet user" is still forbidden
   as a default (§5.7).
-- Gates G2, G4, G5, G6 need a real repo, a real agent run, and a second tailnet
-  device.
+
+- ~~Gates G2, G4, G5, G6~~ — **passed 2026-08-23** with the operator as the
+  remote-browser witness. G8 needs no human.
+
+- **Remaining human decisions:** none blocking. Next work is agent-runnable:
+  G8, then the two critical fixes (§11.1c item 4b), then W6 if desired.
