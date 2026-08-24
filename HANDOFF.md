@@ -1868,6 +1868,26 @@ What remains:
     `~/projects/agent-orchestrator-artifacts/ao.next`. Deploying = stop daemon,
     swap `~/bin/ao`, start daemon, **hard refresh** any open tailnet tab.
     If upstream prefers a different shape on #4267, rebase this off.
+  - **Finding 2 root cause addressed at the prompt layer instead (2026-08-24,
+    `8a5d44791` on `deploy/all-features`).** Investigation showed ticket
+    progression is: worker opens PR → autoreview coordinator sweeps and triggers
+    reviewer agents → workers auto-nudged with feedback → `ready_to_merge`. The
+    stall was that issue-intake workers get "open or update a pull request when
+    ready" appended to their prompt (`trackerintake.intakePromptFooter`) while
+    ad-hoc `DelegateTask` briefs passed through verbatim. Fix: append an
+    identical footer (`delegatedPromptFooter`, kept textually in sync) to
+    non-empty delegation briefs; promptless delegates stay promptless; briefs
+    already carrying the contract are not doubled. Tests:
+    `TestDelegateTaskAppendsCompletionContractToBrief`,
+    `TestDelegateTaskDoesNotDuplicateCompletionContract`; existing spawn/attach
+    expectations updated. **Binary rebuilt (frontend build:web FIRST per §11.9)
+    and staged at `~/projects/agent-orchestrator-artifacts/ao.next` — NOT yet
+    deployed; needs a daemon restart to take effect.** Upstream candidate once
+    proven live: small PR aligning delegation with intake.
+    Test-writing gotcha recorded: `fakeCommander.spawnedCfg` is last-write-wins;
+    with no orchestrator seeded in the fake store, DelegateTask spawns a
+    coordinator second and clobbers the captured worker config — seed an
+    orchestrator session in delegate tests.
   - **Deployed 2026-08-24 ~05:08.** Drafts were posted by the operator's
     instruction: [#4267 comment](https://github.com/Untrivial-ai/agent-orchestrator/pull/4267#issuecomment-5390966941)
     and [issue #4337](https://github.com/Untrivial-ai/agent-orchestrator/issues/4337).
