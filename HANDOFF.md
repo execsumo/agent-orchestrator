@@ -1876,7 +1876,20 @@ What remains:
     origins, ACP wrapper) and log (`/tmp/ao-daemon.log`). Verified: healthz/readyz
     `200`, bridge enabled on 3011, `tailscale serve :8443` untouched, all 12
     sessions intact. **Rollback binary: `~/bin/ao.pre-b6c4c5bf9`.** A hard
-    refresh is required in any open tailnet tab. **Next step for whoever picks
+    refresh is required in any open tailnet tab.
+
+    ⚠️ **First swap shipped a blank page — cause and fix (2026-08-24 ~05:20).**
+    The `b6c4c5bf9` binary was built without `frontend build:web` first, so it
+    embedded the tracked placeholder `dist/index.html` (`/index.js` → 404) —
+    exactly §11.9's "build order matters" warning. Rebuilt correctly:
+    `npm run build:web` in the worktree's frontend, then `go build`; daemon
+    re-swapped and re-verified: `/` serves the real hashed bundle
+    (`/assets/index-Da65qtTv.js`, 1.5 MB, `200`), jail returns uniform `404`,
+    all 12 sessions intact. **The restart also restored `AO_FS_ROOTS=/home/dev/projects`,
+    which the first restart had silently dropped** (it was not visible in the
+    truncated `/proc/<pid>/environ` capture) — without it W6's picker is inert.
+    The full env list for future restarts is in this section; always include
+    `AO_FS_ROOTS`. Placeholder `dist/index.html` restored per §11.9. **Next step for whoever picks
     this up: check the #4267 comment and #4337 conversation before further
     notification work** — if maintainers pick a different shape for either
     finding, rebase or revert the local commit accordingly; finding 2 stays
