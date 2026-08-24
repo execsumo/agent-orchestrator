@@ -2974,7 +2974,8 @@ func TestActivity_TurnCompletePredicate(t *testing.T) {
 		{name: "idle to idle", previous: domain.ActivityIdle, kind: domain.KindWorker, mode: domain.SessionModeTUI, want: false},
 		{name: "exited to idle", previous: domain.ActivityExited, kind: domain.KindWorker, mode: domain.SessionModeTUI, want: false},
 		{name: "orchestrator", previous: domain.ActivityActive, kind: domain.KindOrchestrator, mode: domain.SessionModeTUI, want: false},
-		{name: "chat", previous: domain.ActivityActive, kind: domain.KindWorker, mode: domain.SessionModeChat, want: false},
+		{name: "chat worker active to idle", previous: domain.ActivityActive, kind: domain.KindWorker, mode: domain.SessionModeChat, want: true},
+		{name: "chat worker blocked to idle", previous: domain.ActivityBlocked, kind: domain.KindWorker, mode: domain.SessionModeChat, want: true},
 		{name: "terminated", previous: domain.ActivityActive, kind: domain.KindWorker, mode: domain.SessionModeTUI, terminated: true, want: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

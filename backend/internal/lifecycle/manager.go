@@ -637,7 +637,9 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 		}
 	} else if next.Activity.State == domain.ActivityIdle &&
 		(prevState == domain.ActivityActive || prevState == domain.ActivityWaitingInput || prevState == domain.ActivityBlocked) &&
-		!next.IsTerminated && next.Kind == domain.KindWorker && next.Mode == domain.SessionModeTUI {
+		!next.IsTerminated && next.Kind == domain.KindWorker {
+		// Mode-agnostic: a finished turn is interesting whether the worker is
+		// driven by a TUI or a chat driver — the operator delegated either way.
 		intent = &ports.NotificationIntent{
 			Type:               domain.NotificationTurnComplete,
 			SessionID:          next.ID,
