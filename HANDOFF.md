@@ -32,7 +32,17 @@ bundle makes a good build look broken.
 
 **The build is finished.** The §11.7 branch deletions were **executed
 2026-08-24** (11 local branches + 3 worktrees removed, containment proofs re-run
-first). The only remaining item is W3's PR, queued behind #4312 merging.
+first). **State as of 2026-08-24:** the daemon runs `deploy/all-features` @
+`8a5d44791`, which adds two fork-local fixes on top of yesterday's assembly —
+chat-mode workers fire `turn_complete` (`b6c4c5bf9`) and delegated briefs carry
+the same completion contract as issue intake (`8a5d44791`; this is what makes
+orchestrated tickets progress to PRs — see the ticket-progression block in
+§11.7). Rollback: `~/bin/ao.pre-b6c4c5bf9`. Upstream threads open: five PRs (#4266,
+#4267, #4309, #4312, #4313) plus a pending discussion comment on #4267 (widening
+to chat workers); #4337 was opened and **closed by us** with a full investigation
+arc. Remaining: W3's PR queued behind #4312 merging, maintainer responses, and
+one live verification — delegate a real task and watch it open its PR and
+progress lanes unattended.
 
 ⚠️ **`turn_complete` was observed 2026-08-23 (late) and the observation found a
 real bug** — the feature fired correctly but the schema's CHECK constraint
@@ -1247,8 +1257,25 @@ pre-existing upstream `crush` failure that is not ours (§11.9).
 
 ### 11.1a2 Live process state at the break (2026-08-23 end of session)
 
+> **Re-checked 2026-08-24 (current; supersedes the bullets below where they
+> disagree).** The daemon now runs the `deploy/all-features` @ `8a5d44791`
+> build (chat-mode `turn_complete` + delegation completion contract), restarted
+> with the FULL env — `AO_CONNECT_BIND_HOST=127.0.0.1`,
+> `AO_CONNECT_STRICT_PORT=1`, `AO_CONNECT_TRUST_TAILSCALE_IDENTITY=1`,
+> `AO_CONNECT_ALLOWED_LOGINS=execsumo@github`,
+> `AO_ALLOWED_ORIGINS=https://vibebox.goose-marlin.ts.net:8443`,
+> `AO_CLAUDE_ACP_COMMAND=/home/dev/bin/claude-acp-wrapper`, and
+> **`AO_FS_ROOTS=/home/dev/projects`** (dropping this silently disables W6's
+> picker — it was lost once on restart because a truncated
+> `/proc/<pid>/environ` capture missed it). Logs append to `/tmp/ao-daemon.log`.
+> Rollback chain: `~/bin/ao.pre-b6c4c5bf9` → `~/bin/ao.prev` → DB backup
+> `~/.ao/data/ao.db.pre-upgrade-20260823`. Worktrees remaining: `w0`, `w1`,
+> `w5`, `all-features` (`w2`–`w4` removed with their branches). All local
+> branches are pushed to `origin`; the only unpushed ref is
+> `review/spawn-role-override` (deliberate, §11.7).
+
 Nothing here is load-bearing — a new session can kill all of it — but knowing
-what is running avoids confusion:
+what is running avoids confusion.
 
 Re-checked at the close of the 2026-08-23 session:
 
@@ -1932,10 +1959,32 @@ What remains:
   (`docs/architecture.md` PR pipeline), review flow gates, and a human or
   orchestrator-driven step performs the merge. "The orchestrator missed the
   merge" is therefore expected behavior today, not a dropped duty.
+
+  #### Ticket progression — who owns each transition (verified in code 2026-08-24)
+
+  | Transition | Owner | Mechanism |
+  | --- | --- | --- |
+  | work → commits | Worker | its task |
+  | commits → PR | **Worker, only if told** | issue-intake prompts get it baked in (`trackerintake` footer); ad-hoc delegates now too via `delegatedPromptFooter` (`8a5d44791`) |
+  | PR → In Review | **Fully automatic** | `autoreview` coordinator sweeps (~1 min), triggers a reviewer agent (`backend/internal/autoreview/coordinator.go`) |
+  | review feedback → fixes | Worker, auto-nudged | `lifecycle/reactions.go` delivers review results as worker nudges |
+  | Ready to Merge | derived fact + bell | CI green + approved review → `ready_to_merge` notification |
+  | merge | human (or orchestrator if asked) | explicit act |
+
+  Board lanes are **derived at read time** from durable facts (activity state,
+  PR/check/review facts) — nobody "moves" a ticket. The two prompt layers:
+  everything workers share (role, orchestrator link, multi-PR branch
+  conventions, container labels, project rules) is injected at the SYSTEM-prompt
+  layer for all spawns (`session_manager/prompt.go buildSystemPromptText`); the
+  completion contract was the only TASK-prompt delta between intake and
+  delegation, now closed.
 - **PR #4267 body updated 2026-08-24** with the migration section the reviewer
   needed (0107 story, table rebuild, down-migration data loss, version-107
   ledger rationale). That closes the second open operator decision from this
-  section's earlier revision.
+  section's earlier revision. **Both posted texts are archived in-repo at
+  `docs/upstream-correspondence-2026-08-24.md`** — the working drafts in
+  `~/projects/agent-orchestrator-artifacts/` are outside git and must not be
+  the only copy.
 - **W3's PR is queued behind #4312, deliberately.**
   `pr/project-creation-web-fallback` is stacked on `pr/renderer-bridge-capabilities`.
   A cross-fork PR cannot target a base that exists only on the fork, so opening it
