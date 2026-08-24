@@ -1848,6 +1848,32 @@ What remains:
   channel at all** — `OrchestratorID` on the delegate outcome is bookkeeping
   metadata; nothing consumes it to ping the orchestrator session. AO
   notifications target the operator's NotificationCenter only.
+
+  **Follow-ups decided 2026-08-24:**
+
+  - **Drafts written, awaiting operator review/post** (outward-facing):
+    `~/projects/agent-orchestrator-artifacts/pr-comments/pr-4267-chat-mode-workers.md`
+    (proposes widening #4267 to chat-mode workers) and
+    `~/projects/agent-orchestrator-artifacts/upstream-issue-delegate-idle-ping.md`
+    (upstream issue: orchestrator learns nothing when a delegate goes idle;
+    three design options, lean message-injection via the `ao send` path).
+  - **Finding 1 implemented fork-local** on `deploy/all-features` commit
+    `b6c4c5bf9`: dropped the `Mode == TUI` term from the emission predicate so
+    any non-terminated worker notifies. Tests updated
+    (`TestActivity_TurnCompletePredicate` chat cases now expect firing);
+    lifecycle+notify suites green, `go vet` clean, full backend suite clean
+    except a **pre-existing environmental** `crush`
+    `TestCrushLocalAuthStatusDoesNotUseProviderCatalog` failure (fails with the
+    change stashed too). New binary **staged but NOT deployed**:
+    `~/projects/agent-orchestrator-artifacts/ao.next`. Deploying = stop daemon,
+    swap `~/bin/ao`, start daemon, **hard refresh** any open tailnet tab.
+    If upstream prefers a different shape on #4267, rebase this off.
+  - **Next steps:** (1) operator posts/reviews the two drafts; (2) **check the
+    upstream issue/#4267 conversation before further notification work** — if
+    maintainers pick a different shape for either finding, rebase or drop the
+    local commits accordingly; (3) deploy `ao.next` at a natural break in
+    dog-fooding; (4) finding 2 stays unimplemented until the issue conversation
+    lands a direction.
 - **Dog-fooding finding 2 — merging is never automatic (2026-08-24).** A worker
   commits to its own `ao/<project>/<session>/root` branch; nothing merges to the
   default branch by itself. The designed path is: open a PR (the orchestrator
