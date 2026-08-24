@@ -30,8 +30,9 @@ Open-in-editor error banner on every session view — **fixed in `96eaf5b4a`**
 (§11.9). A **hard refresh is required after any rebuild**, or the cached previous
 bundle makes a good build look broken.
 
-**The build is finished. Nothing else is blocking.** The rest is the branch
-deletions in §11.7 and W3's PR, queued behind #4312 merging.
+**The build is finished.** The §11.7 branch deletions were **executed
+2026-08-24** (11 local branches + 3 worktrees removed, containment proofs re-run
+first). The only remaining item is W3's PR, queued behind #4312 merging.
 
 ⚠️ **`turn_complete` was observed 2026-08-23 (late) and the observation found a
 real bug** — the feature fired correctly but the schema's CHECK constraint
@@ -1369,8 +1370,8 @@ Those two are the most expensive things to relearn.
    EventSource.** Until 21:48 on 2026-08-23 no notification had ever existed to
    push, so those streams have only ever carried zero bytes. Drive a turn on a
    TUI worker with the tailnet page open and watch the bell. What
-   remains in §11.7 is the branch deletions and W3's PR, both waiting on the
-   operator, plus observing `turn_complete` — which needs no rebuild any more.
+   remains in §11.7 is W3's PR (the branch deletions were executed 2026-08-24),
+   plus observing `turn_complete` — which needs no rebuild any more.
    Branch disposition is no longer a question; it was decided and executed.
 
 3. **If asked to upstream more than the two open PRs**, the integration branch
@@ -1814,22 +1815,25 @@ What remains:
   `~/.ao/data/ao.db.pre-upgrade-20260823`. The binary alone is not enough —
   upstream's migrations 0104–0106 have already upgraded the live database.
 
-- **Branch deletions — waiting on the operator.** A read-only cleanup report was
-  produced with a containment proof per branch. The delegate worktrees have since
-  been torn down; the report was archived to
-  **`~/projects/agent-orchestrator-artifacts/cleanup-report.md`**, alongside the
-  four PR-body drafts and the two correction briefs. The branch table in §11.1
-  carries the summary.
-  Clean deletion candidates, each proven contained elsewhere:
-  `fix/tui-needs-input-notifications` (exactly at `main`), `verify/g8`,
-  `test/spawn-cross-harness-e2e`, `feat/turn-complete-followups`, the two local
-  pre-squash duplicates, and `delegate/w0`–`delegate/w5`.
+- ~~**Branch deletions — waiting on the operator.**~~ ✅ **DONE 2026-08-24.** All
+  containment proofs from **`~/projects/agent-orchestrator-artifacts/cleanup-report.md`**
+  were re-run and re-verified first (`feat/turn-complete-followups` had drifted:
+  it is now strictly an ancestor of `origin/pr/turn-complete-notification`, which
+  gained the 0107 schema fix after the local branch was cut — still contained).
+  Deleted local branches: `fix/tui-needs-input-notifications`, `verify/g8`,
+  `test/spawn-cross-harness-e2e`, `feat/turn-complete-followups`,
+  `fix/spawn-role-override-model-leak`, `delegate/w0`–`delegate/w5`. Removed the
+  worktrees that held them (`w2`, `w3`, `w4`; all three clean, `.delegate/`
+  artifacts already archived). The `-D` permission gate never triggered.
 
-  **Two were examined and are NOT safe to delete:**
-  `origin/feat/turn-complete-notifications` differs from its PR ref in five
-  notification/mobile files, and `review/spawn-role-override` is not tree-identical
-  to either the fix branch or the PR branch. Recall that `git branch -D` is
-  permission-gated here (§11.1b) — recycle with `git worktree add -B` instead.
+  **Kept deliberately:** `origin/feat/turn-complete-notifications` (+ its identical
+  local twin) still differs from its PR ref in five notification/mobile files;
+  `review/spawn-role-override` is tree-different from both the fix and PR refs;
+  `delegate/split-w1234` has no containment proof in the report and was left
+  alone; `feat/w6-remote-directory-picker`, `test/w6-directory-picker-coverage`,
+  and `fix/fake-adapter-login-shell` have no PR yet; the five `pr/*` branches map
+  to open PRs. Remaining worktrees: `all-features`, `w0`, `w1`, `w5`. The two idle
+  delegate panes from the break were already gone.
 
 - **W3's PR is queued behind #4312, deliberately.**
   `pr/project-creation-web-fallback` is stacked on `pr/renderer-bridge-capabilities`.
