@@ -1888,6 +1888,17 @@ What remains:
     with no orchestrator seeded in the fake store, DelegateTask spawns a
     coordinator second and clobbers the captured worker config — seed an
     orchestrator session in delegate tests.
+  - **✅ ISSUE CONSIDERED ADDRESSED (2026-08-24 ~06:35).** The `8a5d44791` build
+    is deployed (`~/bin/ao` swapped, daemon restarted with the full env incl.
+    `AO_FS_ROOTS`; healthz/readyz `200`, hashed bundle `200`, jail uniform
+    `404`, all 12 sessions intact). Rollback binary:
+    `~/bin/ao.pre-b6c4c5bf9`. **#4337 closed** with a comment giving maintainers
+    the honest arc: history (#2836→#3038→#3257) acknowledged, root cause
+    identified as prompt asymmetry between intake and delegation, better path
+    taken fork-side. No upstream PR for the footer yet — propose only after it
+    proves itself live in dog-fooding. Remaining verification: delegate a real
+    task and confirm the worker opens its PR before idling and lanes progress
+    via auto-review.
   - **Deployed 2026-08-24 ~05:08.** Drafts were posted by the operator's
     instruction: [#4267 comment](https://github.com/Untrivial-ai/agent-orchestrator/pull/4267#issuecomment-5390966941)
     and [issue #4337](https://github.com/Untrivial-ai/agent-orchestrator/issues/4337).
