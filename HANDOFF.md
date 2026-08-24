@@ -1868,12 +1868,19 @@ What remains:
     `~/projects/agent-orchestrator-artifacts/ao.next`. Deploying = stop daemon,
     swap `~/bin/ao`, start daemon, **hard refresh** any open tailnet tab.
     If upstream prefers a different shape on #4267, rebase this off.
-  - **Next steps:** (1) operator posts/reviews the two drafts; (2) **check the
-    upstream issue/#4267 conversation before further notification work** — if
-    maintainers pick a different shape for either finding, rebase or drop the
-    local commits accordingly; (3) deploy `ao.next` at a natural break in
-    dog-fooding; (4) finding 2 stays unimplemented until the issue conversation
-    lands a direction.
+  - **Deployed 2026-08-24 ~05:08.** Drafts were posted by the operator's
+    instruction: [#4267 comment](https://github.com/Untrivial-ai/agent-orchestrator/pull/4267#issuecomment-5390966941)
+    and [issue #4337](https://github.com/Untrivial-ai/agent-orchestrator/issues/4337).
+    `~/bin/ao` swapped to the `b6c4c5bf9` build and the daemon restarted with its
+    exact prior env (bind 127.0.0.1, strict port, identity trust, allowlist,
+    origins, ACP wrapper) and log (`/tmp/ao-daemon.log`). Verified: healthz/readyz
+    `200`, bridge enabled on 3011, `tailscale serve :8443` untouched, all 12
+    sessions intact. **Rollback binary: `~/bin/ao.pre-b6c4c5bf9`.** A hard
+    refresh is required in any open tailnet tab. **Next step for whoever picks
+    this up: check the #4267 comment and #4337 conversation before further
+    notification work** — if maintainers pick a different shape for either
+    finding, rebase or revert the local commit accordingly; finding 2 stays
+    unimplemented until #4337 lands a direction.
 - **Dog-fooding finding 2 — merging is never automatic (2026-08-24).** A worker
   commits to its own `ao/<project>/<session>/root` branch; nothing merges to the
   default branch by itself. The designed path is: open a PR (the orchestrator
