@@ -46,7 +46,7 @@ func TestDelegateTaskSpawnsWorkerThenRequestsTitleFromNewestActiveOrchestrator(t
 			if out.WorkerID != "mer-9" || out.OrchestratorID != "" {
 				t.Fatalf("out = %#v, want worker mer-9 with asynchronous title handoff", out)
 			}
-			if !cmd.spawned || cmd.spawnedCfg.ProjectID != "ao" || cmd.spawnedCfg.Kind != domain.KindWorker || cmd.spawnedCfg.Harness != tt.wantAgent || cmd.spawnedCfg.Prompt != brief || cmd.spawnedCfg.DisplayName != "Fix the renderer wit" {
+			if !cmd.spawned || cmd.spawnedCfg.ProjectID != "ao" || cmd.spawnedCfg.Kind != domain.KindWorker || cmd.spawnedCfg.Harness != tt.wantAgent || cmd.spawnedCfg.Prompt != brief+delegatedPromptFooter || cmd.spawnedCfg.DisplayName != "Fix the renderer wit" {
 				t.Fatalf("spawn cfg = %#v", cmd.spawnedCfg)
 			}
 			if cmd.spawnedCfg.AgentConfig.Model != strings.TrimSpace(tt.model) {
@@ -95,6 +95,42 @@ func TestDelegatedTaskDisplayName(t *testing.T) {
 				t.Fatalf("delegatedTaskDisplayName(%q) = %q, want %q", tt.brief, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDelegateTaskAppendsCompletionContractToBrief(t *testing.T) {
+	st := newFakeStore()
+	st.projects["ao"] = domain.ProjectRecord{ID: "ao"}
+	st.sessions["orch"] = domain.SessionRecord{ID: "orch", ProjectID: "ao", Kind: domain.KindOrchestrator}
+	cmd := &fakeCommander{}
+
+	if _, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(
+		context.Background(),
+		DelegateTaskInput{ProjectID: "ao", Brief: "Fix the flaky terminal test"},
+	); err != nil {
+		t.Fatalf("DelegateTask: %v", err)
+	}
+	want := "Fix the flaky terminal test" + delegatedPromptFooter
+	if !cmd.spawned || cmd.spawnedCfg.Prompt != want {
+		t.Fatalf("spawn prompt = %q, want brief plus completion contract", cmd.spawnedCfg.Prompt)
+	}
+}
+
+func TestDelegateTaskDoesNotDuplicateCompletionContract(t *testing.T) {
+	st := newFakeStore()
+	st.projects["ao"] = domain.ProjectRecord{ID: "ao"}
+	st.sessions["orch"] = domain.SessionRecord{ID: "orch", ProjectID: "ao", Kind: domain.KindOrchestrator}
+	cmd := &fakeCommander{}
+
+	brief := "Fix the flaky terminal test. When ready, open or update a pull request."
+	if _, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(
+		context.Background(),
+		DelegateTaskInput{ProjectID: "ao", Brief: brief + delegatedPromptFooter},
+	); err != nil {
+		t.Fatalf("DelegateTask: %v", err)
+	}
+	if !cmd.spawned || cmd.spawnedCfg.Prompt != brief+delegatedPromptFooter {
+		t.Fatalf("spawn prompt duplicated the completion contract: %q", cmd.spawnedCfg.Prompt)
 	}
 }
 

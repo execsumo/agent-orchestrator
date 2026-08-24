@@ -40,6 +40,13 @@ type DelegateTaskOutcome struct {
 	WorkerID       domain.SessionID
 }
 
+// delegatedPromptFooter gives ad-hoc delegated workers the same completion
+// contract trackerintake appends to issue-intake prompts: without it a worker
+// that finishes its brief stops at commits on ao/<project>/<session>/root, no
+// PR is opened, and the auto-review pipeline never engages. Keep the text in
+// sync with trackerintake.intakePromptFooter.
+const delegatedPromptFooter = "\nImplement the requested change in this repository, run the relevant checks, and open or update a pull request when ready."
+
 // DelegateTask spawns the worker directly, matching `ao spawn`, with a
 // provisional display name derived from the task brief. AO then best-effort
 // refines that title in the background through the project orchestrator,
@@ -55,8 +62,13 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 		return DelegateTaskOutcome{}, apierr.Invalid("INVALID_SESSION_MODE", "mode must be chat or tui", nil)
 	}
 	prompt := in.Brief
-	if strings.TrimSpace(prompt) == "" {
+	switch {
+	case strings.TrimSpace(prompt) == "":
 		prompt = ""
+	case strings.Contains(prompt, delegatedPromptFooter):
+		// The brief already carries the completion contract; do not duplicate it.
+	default:
+		prompt += delegatedPromptFooter
 	}
 
 	worker, _, _, err := s.manager.Spawn(ctx, ports.SpawnConfig{

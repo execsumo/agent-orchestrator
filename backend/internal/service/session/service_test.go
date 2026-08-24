@@ -3187,7 +3187,7 @@ func TestDelegateTaskPassesAttachmentsToSpawnConfig(t *testing.T) {
 	if fc.spawnedCfg.ProjectID != "mer" || fc.spawnedCfg.Kind != domain.KindWorker {
 		t.Fatalf("spawned cfg identity = %#v", fc.spawnedCfg)
 	}
-	if fc.spawnedCfg.Harness != domain.HarnessCodex || fc.spawnedCfg.Prompt != "Use the attached image." {
+	if fc.spawnedCfg.Harness != domain.HarnessCodex || fc.spawnedCfg.Prompt != "Use the attached image."+delegatedPromptFooter {
 		t.Fatalf("spawned cfg fields = %#v", fc.spawnedCfg)
 	}
 	if len(fc.spawnedCfg.Attachments) != 1 {
