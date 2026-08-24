@@ -1835,6 +1835,30 @@ What remains:
   to open PRs. Remaining worktrees: `all-features`, `w0`, `w1`, `w5`. The two idle
   delegate panes from the break were already gone.
 
+- **Dog-fooding finding 1 — no notification when a chat-mode worker finishes
+  (2026-08-24).** The operator's delegated codex worker `vibeboxui-2` completed
+  two commits with no `turn_complete` notification. Verified against the live DB:
+  zero rows written, so not a resolution artifact. Root cause is deliberate
+  scope, not a bug: the emission guard (`lifecycle/manager.go`, ApplyActivity
+  intent branch) requires `KindWorker && ModeTUI`, and `vibeboxui-2` is
+  `session_mode='chat'`. PR #4267 is titled "…when a TUI worker finishes".
+  Two related gaps, both product decisions for upstream, neither implemented:
+  (a) whether chat-mode workers should notify at all (volume was the reason for
+  the TUI-only scope); (b) there is **no worker→orchestrator notification
+  channel at all** — `OrchestratorID` on the delegate outcome is bookkeeping
+  metadata; nothing consumes it to ping the orchestrator session. AO
+  notifications target the operator's NotificationCenter only.
+- **Dog-fooding finding 2 — merging is never automatic (2026-08-24).** A worker
+  commits to its own `ao/<project>/<session>/root` branch; nothing merges to the
+  default branch by itself. The designed path is: open a PR (the orchestrator
+  can instruct the worker), AO then *observes* PR/check/comment facts
+  (`docs/architecture.md` PR pipeline), review flow gates, and a human or
+  orchestrator-driven step performs the merge. "The orchestrator missed the
+  merge" is therefore expected behavior today, not a dropped duty.
+- **PR #4267 body updated 2026-08-24** with the migration section the reviewer
+  needed (0107 story, table rebuild, down-migration data loss, version-107
+  ledger rationale). That closes the second open operator decision from this
+  section's earlier revision.
 - **W3's PR is queued behind #4312, deliberately.**
   `pr/project-creation-web-fallback` is stacked on `pr/renderer-bridge-capabilities`.
   A cross-fork PR cannot target a base that exists only on the fork, so opening it
