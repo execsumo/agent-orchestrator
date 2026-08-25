@@ -2102,10 +2102,18 @@ What remains:
   upstream has neither footer, so the Mac's briefs had no completion contract
   either and still produced PRs. **The footer was never what made that work.**
 
-  Project difference worth fixing regardless: `vibeboxui` has **no
-  `defaultBranch`** in its config (the orchestrator prompt renders "Default
-  branch: not configured"); `ao-g2-scratch` has `master`. `autoReview` is
-  already `true` for `vibeboxui`.
+  Project difference worth fixing regardless: `vibeboxui` had **no
+  `defaultBranch`** in its config (the orchestrator prompt rendered "Default
+  branch: not configured"); `ao-g2-scratch` has `master`. `autoReview` was
+  already `true`.
+
+  **Fixed 2026-08-25:** `ao project set-config vibeboxui --config-json …` with
+  `"defaultBranch":"master"` added. Note `set-config` **replaces** the config
+  rather than merging — pass the whole object via `--config-json` or the agent
+  overrides and `autoReview` are silently dropped. Read back and confirmed
+  intact. Other prerequisites verified the same day: `gh` authed as `execsumo`
+  with `repo` scope, `execsumo/vibeboxUI` reachable, its GitHub default branch
+  is `master` (so the config now matches the remote).
   - **✅ (SUPERSEDED — see above) ISSUE CONSIDERED ADDRESSED (2026-08-24 ~06:35).** The `8a5d44791` build
     is deployed (`~/bin/ao` swapped, daemon restarted with the full env incl.
     `AO_FS_ROOTS`; healthz/readyz `200`, hashed bundle `200`, jail uniform
