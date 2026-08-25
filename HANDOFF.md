@@ -1395,13 +1395,17 @@ Those two are the most expensive things to relearn.
    failure message is recorded. **Do not re-run the gates to satisfy yourself;**
    re-run one only if you are about to change the code it covers.
 
-2. **One thing is pending verification — start here.** The completion-contract
-   fix (`7b4169ad8`, §11.7) is deployed but has never been observed reaching a
-   real worker. Its predecessor looked finished on unit tests and was not, which
-   is the whole reason it needed a second fix. The next delegated worker settles
-   it; §11.7 has the SQL and the pass condition. Everything below was already
-   confirmed: the tailnet loop end to end by the operator, and the one
-   regression it surfaced is fixed (§11.9).
+2. **Three things are open, and the first is not what two cycles assumed.**
+   (a) The board renders `idle` and `working` as the same lane
+   (`session-presentation.ts:234`), which is the real reason a finished worker
+   keeps appearing stuck — a product question, not a prompt bug, and #3257
+   constrains the answer. (b) `7b4169ad8` appends the PR footer even to briefs
+   that explicitly forbid a PR; needs an opt-out field, not text matching.
+   (c) The PR→auto-review→ready_to_merge pipeline has still never been watched
+   end to end, because every dog-fooded task so far was a no-PR task. All three
+   are written up in §11.7. Everything below was already confirmed: the tailnet
+   loop end to end by the operator, and the one regression it surfaced is fixed
+   (§11.9).
    `turn_complete` was then observed live, which found and fixed a schema bug
    (§11.10). **One thing has never been checked from a browser: whether a
    notification reaches the UI over the `/api/v1/notifications/stream`
@@ -2008,24 +2012,71 @@ What remains:
     comment is drafted in `docs/upstream-correspondence-2026-08-24.md` — **not
     posted**; posting is the operator's call.
 
-    **⚠️ STILL UNVERIFIED LIVE — do not repeat the last cycle's mistake.** Unit
-    tests are exactly what made `8a5d44791` look finished. Nothing has yet
-    confirmed the footer reaching a real worker through the deployed binary.
-    The acceptance test costs nothing extra: the **next** worker the
-    orchestrator delegates on this build settles it. Run this against that
-    worker's session id —
+    **✅ FOOTER DELIVERY CONFIRMED LIVE (2026-08-25 03:51, `vibeboxui-5`).**
+    First delegated worker on the `7b4169ad8` build: delivered first user turn
+    **1601 B, ending in the footer**, and the `like '%open or update a pull
+    request when ready%'` count is **`1`** where `vibeboxui-4` returned `0`.
+    The two-path fix works. That is the whole of what this check proves — see
+    the two items below for what it does not.
 
-    ```sql
-    select length(m.text) from conversation_messages m
-      join conversations c on c.id = m.conversation_id
-     where c.session_id = '<new-session-id>' order by m.sequence limit 1;
-    ```
+- **🐞 DEFECT INTRODUCED BY `7b4169ad8` — the footer contradicts explicit
+  no-PR briefs (found live 2026-08-25, `vibeboxui-5`).** The append is
+  unconditional, so an ops delegation whose brief ends —
 
-    — and compare against the brief's own length. **Brief + 122 is the pass
-    condition** (the footer is 122 B). Or grep it directly:
-    `... and m.text like '%open or update a pull request%'` must return `1`,
-    where it returned `0` for `vibeboxui-4`. Until that comes back, treat this
-    as deployed-but-unproven, and do not tell upstream it works.
+  > `- Do not commit, push, or open a PR.`
+
+  — now has AO append `"…and open or update a pull request when ready."`
+  directly after it. The worker got two opposite instructions in one prompt.
+  It resolved in favour of the brief (correct) and did the serve task, but
+  that is the worker being sensible, not the prompt being right.
+
+  **Do not fix this by matching the brief's text for "do not open a PR"** —
+  briefs phrase it a dozen ways and a false negative is silent. The seam is an
+  explicit opt-out at the delegation boundary: a `SpawnConfig` field with an
+  `ao spawn --no-pr` flag in front of it, and a line in the orchestrator prompt
+  (`session_manager/prompt.go`, Core Commands) telling it to pass that flag for
+  ops/no-code tasks. That is the same "gate on a field, not on the `Kind`
+  check" note the caller-inventory item above already anticipated. **Not built
+  — the operator has chosen the shape on both prior rounds; ask.**
+
+- **🎯 THE ACTUAL CAUSE of "the worker finished but still sits in
+  Idle/Working" — it was never the prompt (found 2026-08-25).** Two cycles of
+  completion-contract work were spent on a real gap that is *not* what the
+  operator kept observing. The board zone is derived in
+  `packages/product-ui/src/session-presentation.ts:234` and reads:
+
+  ```typescript
+  case "working":
+  case "idle":
+      return "working";
+  ```
+
+  **`idle` and `working` map to the same lane.** A worker that has finished is
+  rendered identically to one still running. The only exits from that column
+  are `terminated` → `done`, or PR facts → `pending`/`merge`. *Finishing the
+  work is not one of them.* No prompt change can move a session out of Working;
+  only a PR or a kill can.
+
+  `turn_complete` **did** fire for `vibeboxui-5` at 03:55:46 ("serve vibeboxUI
+  finished its turn", unread). So the completion signal exists and reaches the
+  bell — it just has no representation on the board.
+
+  **Do not "fix" this by rendering `idle` as done.** Upstream removed exactly
+  that inference in #3257 because *idle does not mean done*, and our own #4337
+  closing comment cites that history approvingly
+  (`docs/upstream-correspondence-2026-08-24.md`). Any change here is a product
+  decision about a fifth state ("finished, nothing to review"), not a bug fix,
+  and it needs the operator and probably an upstream discussion.
+
+- **⚠️ THE PIPELINE VERIFICATION IS STILL NOT DONE.** It has now slipped three
+  cycles, and the footer check above does **not** discharge it. All three
+  dog-fooded delegations were tasks that cannot produce a PR: `vibeboxui-2`
+  (killed), `vibeboxui-4` (fast-forward and push `master` directly),
+  `vibeboxui-5` (serve a directory, "no code changes", "do not open a PR").
+  A no-PR task cannot exercise auto-review or lane progression **by
+  construction**. The test that would actually settle it: delegate a **code
+  change** with **no PR prohibition in the brief**, then watch for the PR, the
+  `autoreview` sweep (~1 min), the reviewer agent, and `ready_to_merge`.
   - **✅ (SUPERSEDED — see above) ISSUE CONSIDERED ADDRESSED (2026-08-24 ~06:35).** The `8a5d44791` build
     is deployed (`~/bin/ao` swapped, daemon restarted with the full env incl.
     `AO_FS_ROOTS`; healthz/readyz `200`, hashed bundle `200`, jail uniform
