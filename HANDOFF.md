@@ -2077,6 +2077,35 @@ What remains:
   construction**. The test that would actually settle it: delegate a **code
   change** with **no PR prohibition in the brief**, then watch for the PR, the
   `autoreview` sweep (~1 min), the reviewer agent, and `ready_to_merge`.
+
+  **The pipeline has never run on this box — `select count(*) from pr` → `0`,
+  `review_run` → `0`, across all four projects, all time.** Not "broken":
+  never exercised. Any claim about lane progression here is therefore untested,
+  including the ones in the ticket-progression table below, which were read out
+  of the code rather than observed.
+
+- **Prompt generation is platform-independent — checked 2026-08-25.** The
+  operator recalled delegated tasks reaching Ready to Merge in the macOS app
+  and asked whether its instructions differ. They do not.
+  `session_manager/prompt.go` is a single implementation with **no `GOOS` or
+  `darwin` branch and no build-tagged variants** (the one `platform` match at
+  `prompt.go:269` is prose about the SCM platform). The Electron shell composes
+  no prompts; `TaskComposer.tsx:251` sends `brief: prompt` — the typed text
+  verbatim. The only prompt text that varies by anything is `## Project Rules` /
+  `## Project-Specific Orchestrator Rules` from project config, and **no
+  project in this DB has any configured**, so even that is identical.
+
+  What actually differed on the Mac was **who wrote the brief**: the New-task
+  composer sends the human's own words, and a human asking for a code change
+  does not append "do not open a PR". Here an orchestrator agent composes the
+  brief with no brief-writing guidance in its prompt. Note the corollary —
+  upstream has neither footer, so the Mac's briefs had no completion contract
+  either and still produced PRs. **The footer was never what made that work.**
+
+  Project difference worth fixing regardless: `vibeboxui` has **no
+  `defaultBranch`** in its config (the orchestrator prompt renders "Default
+  branch: not configured"); `ao-g2-scratch` has `master`. `autoReview` is
+  already `true` for `vibeboxui`.
   - **✅ (SUPERSEDED — see above) ISSUE CONSIDERED ADDRESSED (2026-08-24 ~06:35).** The `8a5d44791` build
     is deployed (`~/bin/ao` swapped, daemon restarted with the full env incl.
     `AO_FS_ROOTS`; healthz/readyz `200`, hashed bundle `200`, jail uniform
