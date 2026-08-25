@@ -32,17 +32,22 @@ bundle makes a good build look broken.
 
 **The build is finished.** The §11.7 branch deletions were **executed
 2026-08-24** (11 local branches + 3 worktrees removed, containment proofs re-run
-first). **State as of 2026-08-24:** the daemon runs `deploy/all-features` @
-`8a5d44791`, which adds two fork-local fixes on top of yesterday's assembly —
-chat-mode workers fire `turn_complete` (`b6c4c5bf9`) and delegated briefs carry
-the same completion contract as issue intake (`8a5d44791`; this is what makes
-orchestrated tickets progress to PRs — see the ticket-progression block in
-§11.7). Rollback: `~/bin/ao.pre-b6c4c5bf9`. Upstream threads open: five PRs (#4266,
+first). **State as of 2026-08-25:** the daemon runs `deploy/all-features` @
+`7b4169ad8`, which adds three fork-local fixes on top of the assembly —
+chat-mode workers fire `turn_complete` (`b6c4c5bf9`), delegated briefs carry the
+same completion contract as issue intake (`8a5d44791`), and that contract
+actually reaches orchestrator-spawned workers (`7b4169ad8` — `8a5d44791` put it
+on the composer path only, so `ao spawn`, which is how an orchestrator
+delegates, still shipped briefs verbatim; see §11.7). Rollback:
+`~/bin/ao.pre-7b4169ad8`. Upstream threads open: five PRs (#4266,
 #4267, #4309, #4312, #4313) plus a pending discussion comment on #4267 (widening
-to chat workers); #4337 was opened and **closed by us** with a full investigation
-arc. Remaining: W3's PR queued behind #4312 merging, maintainer responses, and
-one live verification — delegate a real task and watch it open its PR and
-progress lanes unattended.
+to chat workers); #4337 was opened and **closed by us** — on the incomplete fix,
+so a correction is owed there (drafted, unposted, in
+`docs/upstream-correspondence-2026-08-24.md`). Remaining: W3's PR queued behind
+#4312 merging, maintainer responses, and **the live verification that has now
+slipped two cycles** — delegate a real task and confirm the worker's delivered
+prompt carries the footer, then that it opens its PR and lanes progress
+unattended. §11.7 has the one-line SQL for the first half.
 
 ⚠️ **`turn_complete` was observed 2026-08-23 (late) and the observation found a
 real bug** — the feature fired correctly but the schema's CHECK constraint
@@ -1210,8 +1215,8 @@ pre-existing upstream `crush` failure that is not ours (§11.9).
   fail without one.
 - **`ao` binary at `~/bin/ao`** (durable location), built with
   `go build -o ~/bin/ao ./cmd/ao` — it embeds the real web bundle. **Current build:
-  2026-08-23 21:47 from `deploy/all-features` @ `159eec629`** (§11.10); the later
-  ledger commit is test-only and not compiled in. Build the bundle **immediately
+  2026-08-25 01:48 from `deploy/all-features` @ `7b4169ad8`** (§11.7), replacing
+  the `159eec629` build this bullet used to name. Build the bundle **immediately
   before** the binary, or `go:embed` ships the `dist/index.html` stub and serves a
   blank page — see the trap in §11.10. Not on PATH; invoke as `~/bin/ao`.
 - **A daemon is running on `127.0.0.1:3001`** with the full G4 env — to restart
@@ -1257,9 +1262,10 @@ pre-existing upstream `crush` failure that is not ours (§11.9).
 
 ### 11.1a2 Live process state at the break (2026-08-23 end of session)
 
-> **Re-checked 2026-08-24 (current; supersedes the bullets below where they
-> disagree).** The daemon now runs the `deploy/all-features` @ `8a5d44791`
-> build (chat-mode `turn_complete` + delegation completion contract), restarted
+> **Re-checked 2026-08-25 (current; supersedes the bullets below where they
+> disagree).** The daemon now runs the `deploy/all-features` @ `7b4169ad8`
+> build (chat-mode `turn_complete` + the completion contract on **both**
+> delegation paths — §11.7; rollback `~/bin/ao.pre-7b4169ad8`), restarted
 > with the FULL env — `AO_CONNECT_BIND_HOST=127.0.0.1`,
 > `AO_CONNECT_STRICT_PORT=1`, `AO_CONNECT_TRUST_TAILSCALE_IDENTITY=1`,
 > `AO_CONNECT_ALLOWED_LOGINS=execsumo@github`,
@@ -1389,8 +1395,13 @@ Those two are the most expensive things to relearn.
    failure message is recorded. **Do not re-run the gates to satisfy yourself;**
    re-run one only if you are about to change the code it covers.
 
-2. **Nothing is pending verification.** The tailnet loop was confirmed end to end
-   by the operator, and the one regression it surfaced is fixed (§11.9).
+2. **One thing is pending verification — start here.** The completion-contract
+   fix (`7b4169ad8`, §11.7) is deployed but has never been observed reaching a
+   real worker. Its predecessor looked finished on unit tests and was not, which
+   is the whole reason it needed a second fix. The next delegated worker settles
+   it; §11.7 has the SQL and the pass condition. Everything below was already
+   confirmed: the tailnet loop end to end by the operator, and the one
+   regression it surfaced is fixed (§11.9).
    `turn_complete` was then observed live, which found and fixed a schema bug
    (§11.10). **One thing has never been checked from a browser: whether a
    notification reaches the UI over the `/api/v1/notifications/stream`
@@ -1946,8 +1957,16 @@ What remains:
     `TestSpawnPromptlessWorkerStaysPromptless`,
     `TestSpawnDoesNotDuplicateCompletionContract`. `go vet` clean, full backend
     suite green except the known environmental `crush` failure.
-    **Binary staged at `~/projects/agent-orchestrator-artifacts/ao.next`
-    (built bundle-first per §11.9, placeholder restored) — NOT deployed.**
+    **✅ DEPLOYED 2026-08-25 ~01:48.** `ao stop`, `~/bin/ao` swapped to the
+    `7b4169ad8` build, daemon restarted with the §11.1a env in full (incl.
+    `AO_FS_ROOTS`), log at `/tmp/ao-daemon.log`. **Rollback binary:
+    `~/bin/ao.pre-7b4169ad8`.** No DB backup taken and none needed — this build
+    is the previous one plus a single Go-only commit, no new migrations.
+    Verified live: `/healthz` `200`, `/readyz` `200`, bridge `3011` `401`, `/`
+    serving the real hashed bundle (`assets/index-Da65qtTv.js` `200` — same
+    hash, the frontend is untouched), jail uniform `404` on both `/etc` and a
+    `../../` traversal, **all 14 sessions intact**. `tailscale serve :8443`
+    untouched. A hard refresh is required in any open tailnet tab.
 
     **Who else comes through the widened seam (checked, 2026-08-25).** The
     append sits in `s.spawn`, so every caller of the session service's `Spawn`
@@ -1978,7 +1997,28 @@ What remains:
     **#4337 was closed on this unverified fix** and its own "remaining
     verification" line was never satisfied. Reopen or comment before proposing
     anything upstream; the upstream-candidate PR is now the two-path helper,
-    not the `DelegateTask`-only footer.
+    not the `DelegateTask`-only footer. The correction owed on the posted
+    comment is drafted in `docs/upstream-correspondence-2026-08-24.md` — **not
+    posted**; posting is the operator's call.
+
+    **⚠️ STILL UNVERIFIED LIVE — do not repeat the last cycle's mistake.** Unit
+    tests are exactly what made `8a5d44791` look finished. Nothing has yet
+    confirmed the footer reaching a real worker through the deployed binary.
+    The acceptance test costs nothing extra: the **next** worker the
+    orchestrator delegates on this build settles it. Run this against that
+    worker's session id —
+
+    ```sql
+    select length(m.text) from conversation_messages m
+      join conversations c on c.id = m.conversation_id
+     where c.session_id = '<new-session-id>' order by m.sequence limit 1;
+    ```
+
+    — and compare against the brief's own length. **Brief + 122 is the pass
+    condition** (the footer is 122 B). Or grep it directly:
+    `... and m.text like '%open or update a pull request%'` must return `1`,
+    where it returned `0` for `vibeboxui-4`. Until that comes back, treat this
+    as deployed-but-unproven, and do not tell upstream it works.
   - **✅ (SUPERSEDED — see above) ISSUE CONSIDERED ADDRESSED (2026-08-24 ~06:35).** The `8a5d44791` build
     is deployed (`~/bin/ao` swapped, daemon restarted with the full env incl.
     `AO_FS_ROOTS`; healthz/readyz `200`, hashed bundle `200`, jail uniform

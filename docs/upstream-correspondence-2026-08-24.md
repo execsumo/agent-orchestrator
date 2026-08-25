@@ -45,3 +45,28 @@ Closed with:
 > giving delegated briefs the same completion-contract footer as intake, which
 > closes the loop without reviving any of the removed machinery or changing
 > daemon notification semantics.
+
+### ⚠️ Correction owed on that comment (2026-08-25)
+
+The quoted text above is archived as posted and is left unedited. Part 2 of it
+is **wrong as written**, and the error is worth a follow-up comment before this
+issue is cited anywhere upstream.
+
+The fix that closed #4337 (`8a5d44791`) appended the footer inside
+`DelegateTask`, which is reachable only from `POST /api/v1/orchestrators/delegate`
+— the renderer's task composer, i.e. the *human*'s delegation path. An
+orchestrator **agent** does not use that endpoint. Its own system prompt
+(`session_manager/prompt.go:190`) tells it to delegate with `ao spawn --prompt`,
+which is `POST /api/v1/sessions` → `Svc.Spawn`, and that path still passed the
+brief through verbatim. So the comment's "we fixed this on our side by giving
+delegated briefs the same completion-contract footer" was true only for briefs
+typed by a human into the composer — not for the orchestrator-issued delegation
+the issue was actually about.
+
+Caught in dog-fooding the next day: worker `vibeboxui-4`'s delivered first user
+turn was the brief with no footer. Fixed properly in `7b4169ad8`
+(`deploy/all-features`), which moves the append into a `withCompletionContract`
+helper called from **both** spawn paths. See HANDOFF.md §11.7.
+
+If a PR goes upstream, it is the two-path helper — not the `DelegateTask`-only
+footer described above.
