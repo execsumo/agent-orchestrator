@@ -2019,7 +2019,42 @@ What remains:
     The two-path fix works. That is the whole of what this check proves — see
     the two items below for what it does not.
 
-- **🐞 DEFECT INTRODUCED BY `7b4169ad8` — the footer contradicts explicit
+- **✅ BOTH FIXED AND DEPLOYED 2026-08-25 ~04:50 (`1246ef419`).**
+  `ao spawn --no-pr` (→ `SpawnConfig.NoPR` → a new arm in
+  `withCompletionContract`) suppresses the contract for ops delegations, and
+  `orchestratorSystemPrompt()` gained a **Writing a Worker Brief** section
+  telling orchestrators to default to PR-shaped work, never to forbid a PR on a
+  code change, not to contradict the contract AO appends, and to reach for
+  `--no-pr` instead. Tests: `TestSpawnNoPRSuppressesCompletionContract`,
+  `TestSpawnWithoutNoPRKeepsCompletionContract`,
+  `TestBuildSystemPrompt_OrchestratorLearnsHowToWriteABrief`,
+  `TestBuildSystemPrompt_WorkerDoesNotGetBriefWritingGuidance`; the CLI drift
+  guard gained `--no-pr`. `openapi.yaml` regenerated (`noPr`). `go vet` clean,
+  suite green except the known `crush` failure. Rollback binary:
+  `~/bin/ao.pre-1246ef419`. Live checks after the swap: healthz/readyz `200`,
+  bridge `401`, hashed bundle `200`, jail `404`, 16 sessions intact.
+
+  ⚠️ **`go generate ./...` at the backend root also rewrites
+  `codexproto/protocol.gen.go`** against the locally installed codex-cli (629
+  lines here). It is unrelated to the spec change — `git restore` it before
+  committing.
+
+  🛑 **THE NEW PROMPT IS NOT LIVE FOR EXISTING SESSIONS — verified, not
+  assumed.** `relaunchSessionWithPolicy` (`manager.go:1972`) does recompute
+  standing instructions, but a daemon restart did **not** call it for these
+  sessions: every `~/.ao/data/prompts/*/system.md` still carries its original
+  spawn mtime (`vibeboxui-3` → 2026-08-24 14:37) and `grep -c "Writing a Worker
+  Brief"` returns `0`. A session's system prompt is written **at spawn** and
+  otherwise left alone. **The running orchestrator therefore still holds the
+  old standing instructions and will keep writing the old briefs.** Picking up
+  a prompt change requires a *fresh* orchestrator — the board's restart-
+  orchestrator action (`SpawnOrchestrator(project, clean=true)`), which retires
+  the active one; there is no `ao orchestrator` subcommand for it, only `ls`.
+  Cost: the current orchestrator's conversation context is lost, so this is the
+  operator's call. **Check the mtime and grep before believing any future
+  prompt deploy took effect.**
+
+- **🐞 (FIXED — see above) DEFECT INTRODUCED BY `7b4169ad8` — the footer contradicts explicit
   no-PR briefs (found live 2026-08-25, `vibeboxui-5`).** The append is
   unconditional, so an ops delegation whose brief ends —
 
