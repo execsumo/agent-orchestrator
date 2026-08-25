@@ -1966,7 +1966,14 @@ What remains:
     serving the real hashed bundle (`assets/index-Da65qtTv.js` `200` — same
     hash, the frontend is untouched), jail uniform `404` on both `/etc` and a
     `../../` traversal, **all 14 sessions intact**. `tailscale serve :8443`
-    untouched. A hard refresh is required in any open tailnet tab.
+    untouched. A hard refresh is required in any open tailnet tab. The
+    orchestrator the operator was mid-conversation with (`vibeboxui-3`) came
+    back `idle`, not terminated — session rows survive a restart whether or not
+    the agent relaunches, so check process state, not `count(*)`. The log's two
+    `restore-all: workspace restore failed` ERRORs (`ao-g2-scratch-3`, `-8`) are
+    **not** from this deploy: both sessions are already terminated and their
+    project is archived (`project repo not resolvable`). §11.9 recorded the
+    first one before this build existed.
 
     **Who else comes through the widened seam (checked, 2026-08-25).** The
     append sits in `s.spawn`, so every caller of the session service's `Spawn`
