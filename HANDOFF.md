@@ -2099,6 +2099,33 @@ What remains:
   stalled delegation was an orchestrator-authored brief that forbade or
   bypassed a PR.
 
+  **The footer was load-bearing in that run — do not roll it back.** Checked
+  when the question came up: `vibeboxui-6`'s delivered prompt is 871 B and
+  **ends in the completion contract** (like-count `1`), and the session is
+  **not issue-backed** (`issue_id` empty), so it was freeform work through the
+  composer — a path that has carried the footer since `8a5d44791`. The human's
+  brief said nothing about PRs. Meanwhile the worker's own standing rules for
+  freeform work (`system.md:20`) say *"do not invent issue, PR, or MR
+  requirements"*. So the only instruction in that entire prompt telling the
+  worker to open a PR was the footer, and the standing rules pointed the other
+  way. One run is not proof of the counterfactual, but the balance is clear.
+
+  **What was wrong was the attribution, not the work.** The footer was sold as
+  the fix for "a delegated worker sits in Working forever" (#4337). It is not:
+  the board conflates `idle` and `working` regardless (see the board-zone item
+  below). What it actually does is make *freeform* delegated work PR-shaped,
+  which is the precondition for entering auto-review at all — and therefore the
+  only way a card ever leaves the Working lane short of termination. That is a
+  real function, and it is the honest upstream pitch: intake prompts carry the
+  contract, delegation briefs did not, so orchestrated work never reached the
+  review pipeline. Cleaner than the argument actually posted on #4337.
+
+  This also reconciles the macOS recollection: upstream *does* have
+  `trackerintake.intakePromptFooter`, so issue-backed tasks there always
+  carried the contract. Freeform composer tasks on that build would not have —
+  which is consistent with the Mac tasks that progressed having been
+  issue-backed, or having asked for a PR in the human's own words.
+
   **⚠️ The board and the bell disagree, by design — know this before chasing
   it.** No `ready_to_merge` notification fired for PR #1, only `turn_complete`.
   `MergeReadiness.ReadyToMerge()` (`domain/pr.go:218`) treats `CIUnknown` as a
