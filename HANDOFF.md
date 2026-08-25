@@ -1915,7 +1915,56 @@ What remains:
     with no orchestrator seeded in the fake store, DelegateTask spawns a
     coordinator second and clobbers the captured worker config — seed an
     orchestrator session in delegate tests.
-  - **✅ ISSUE CONSIDERED ADDRESSED (2026-08-24 ~06:35).** The `8a5d44791` build
+  - **⚠️ THE `8a5d44791` FIX WAS ON THE WRONG PATH — corrected 2026-08-25 in
+    `7b4169ad8` (`deploy/all-features`).** Dog-fooding caught it: worker
+    `vibeboxui-4` was spawned by the orchestrator at 14:41 on the deployed
+    build and its delivered first user turn is **1305 B — the brief verbatim,
+    no footer** (a footered prompt is 1427 B; the footer is 122 B). Verified in
+    the DB, not inferred:
+    `select count(*) from conversation_messages m join conversations c on
+    c.id=m.conversation_id where c.session_id='vibeboxui-4' and m.text like
+    '%open or update a pull request%'` → `0`. Note `strings ~/bin/ao | grep -c`
+    on the footer text returns `1`, not `2`, and proves nothing either way —
+    Go dedupes the two byte-identical literals.
+
+    **Cause.** `delegatedPromptFooter` lived inside `DelegateTask`, reachable
+    only from `POST /api/v1/orchestrators/delegate` — which **no CLI command
+    calls**; it is the renderer's `TaskComposer`, i.e. the human→AO path. An
+    orchestrator agent delegates with `ao spawn --prompt` (its own system
+    prompt says so, `session_manager/prompt.go:190`) → `POST /api/v1/sessions`
+    → `Svc.Spawn`, which passed the brief through untouched. The fix closed the
+    intake↔composer asymmetry and left orchestrator→worker, the one #4337 was
+    about, exactly as it was.
+
+    **Fix.** `withCompletionContract(prompt, kind)` in `delegation.go`, called
+    from both `s.spawn` (after `withIssueContext`) and `DelegateTask`.
+    Orchestrator spawns exempt, promptless stays promptless, no doubling on a
+    prompt that already carries it. Tests: `TestSpawnAppendsCompletionContract
+    ToWorkerPrompt` (explicit `worker` **and** empty kind — `ao spawn` sends
+    `""`), `TestSpawnLeavesOrchestratorPromptAlone`,
+    `TestSpawnPromptlessWorkerStaysPromptless`,
+    `TestSpawnDoesNotDuplicateCompletionContract`. `go vet` clean, full backend
+    suite green except the known environmental `crush` failure.
+    **Binary staged at `~/projects/agent-orchestrator-artifacts/ao.next`
+    (built bundle-first per §11.9, placeholder restored) — NOT deployed.**
+
+    **Confound — do not over-read the `vibeboxui-4` observation.** That brief
+    told the worker to `merge --ff-only` and push `master` directly. Even with
+    the footer the prompt would have ended in two contradicting sentences, and
+    the worker had already been told to resolve in favor of the brief. The path
+    gap is real and structural; this one session had a second sufficient cause.
+    The system prompt still tells freeform/orchestrator-requested workers not
+    to invent PR requirements (`system.md:20`) — the task footer now overrides
+    it for delegated work, which is a task-layer/system-layer tension left
+    standing deliberately. Fixing it at the system layer instead was the
+    considered alternative; the operator chose the shared-helper shape
+    2026-08-25.
+
+    **#4337 was closed on this unverified fix** and its own "remaining
+    verification" line was never satisfied. Reopen or comment before proposing
+    anything upstream; the upstream-candidate PR is now the two-path helper,
+    not the `DelegateTask`-only footer.
+  - **✅ (SUPERSEDED — see above) ISSUE CONSIDERED ADDRESSED (2026-08-24 ~06:35).** The `8a5d44791` build
     is deployed (`~/bin/ao` swapped, daemon restarted with the full env incl.
     `AO_FS_ROOTS`; healthz/readyz `200`, hashed bundle `200`, jail uniform
     `404`, all 12 sessions intact). Rollback binary:
@@ -1965,7 +2014,7 @@ What remains:
   | Transition | Owner | Mechanism |
   | --- | --- | --- |
   | work → commits | Worker | its task |
-  | commits → PR | **Worker, only if told** | issue-intake prompts get it baked in (`trackerintake` footer); ad-hoc delegates now too via `delegatedPromptFooter` (`8a5d44791`) |
+  | commits → PR | **Worker, only if told** | issue-intake prompts get it baked in (`trackerintake` footer); delegated workers via `delegatedPromptFooter` — on the composer path since `8a5d44791`, on the `ao spawn` path (how orchestrators actually delegate) only since `7b4169ad8` |
   | PR → In Review | **Fully automatic** | `autoreview` coordinator sweeps (~1 min), triggers a reviewer agent (`backend/internal/autoreview/coordinator.go`) |
   | review feedback → fixes | Worker, auto-nudged | `lifecycle/reactions.go` delivers review results as worker nudges |
   | Ready to Merge | derived fact + bell | CI green + approved review → `ready_to_merge` notification |
