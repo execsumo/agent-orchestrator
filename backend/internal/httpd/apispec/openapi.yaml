@@ -8871,6 +8871,8 @@ components:
         model:
           maxLength: 256
           type: string
+        noPr:
+          type: boolean
         projectId:
           type: string
         prompt:

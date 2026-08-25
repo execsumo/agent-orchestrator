@@ -176,3 +176,41 @@ func TestProjectRelativeFileRejectsTraversal(t *testing.T) {
 		t.Fatal("expected traversal path to be rejected")
 	}
 }
+
+// The brief is the orchestrator's only lever on whether delegated work can
+// finish: a brief that forbids a PR strands the worker on commits, and the
+// board renders idle and working identically so the task looks stuck forever.
+// Before this section the orchestrator prompt said only "Send workers clear
+// task instructions with the expected outcome", and orchestrators wrote briefs
+// ending in "Do not commit, push, or open a PR."
+func TestBuildSystemPrompt_OrchestratorLearnsHowToWriteABrief(t *testing.T) {
+	got := buildSystemPromptText(systemPromptConfig{
+		Role:    sessionPromptRoleOrchestrator,
+		Project: promptProject{ID: "mer", Name: "Mercury"},
+	})
+	for _, want := range []string{
+		"## Writing a Worker Brief",
+		"Default to pull-request-shaped work",
+		"Never tell a worker not to open a PR for a code change",
+		"AO appends a completion contract to every worker brief",
+		"pass `--no-pr` instead",
+		"only for work that produces no code change",
+		"Do not dictate the implementation",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("orchestrator prompt missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// Brief-writing is an orchestrator concern. Leaking it into worker prompts
+// would tell every worker how to delegate, which workers must not do.
+func TestBuildSystemPrompt_WorkerDoesNotGetBriefWritingGuidance(t *testing.T) {
+	got := buildSystemPromptText(systemPromptConfig{
+		Role:    sessionPromptRoleWorker,
+		Project: promptProject{ID: "mer", Name: "Mercury"},
+	})
+	if strings.Contains(got, "Writing a Worker Brief") || strings.Contains(got, "--no-pr") {
+		t.Fatalf("worker prompt leaked orchestrator brief guidance:\n%s", got)
+	}
+}

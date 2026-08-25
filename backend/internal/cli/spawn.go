@@ -31,6 +31,7 @@ type spawnOptions struct {
 	name            string
 	model           string
 	claimPR         string
+	noPR            bool
 	noTakeover      bool
 	skipAgentCheck  bool
 	trackerProvider string
@@ -47,6 +48,7 @@ type spawnRequest struct {
 	Harness         string `json:"harness,omitempty"`
 	Branch          string `json:"branch,omitempty"`
 	Prompt          string `json:"prompt,omitempty"`
+	NoPR            bool   `json:"noPr,omitempty"`
 	Model           string `json:"model,omitempty"`
 	DisplayName     string `json:"displayName"`
 }
@@ -147,6 +149,7 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 				Mode:            opts.mode,
 				Branch:          opts.branch,
 				Prompt:          opts.prompt,
+				NoPR:            opts.noPR,
 				Model:           strings.TrimSpace(opts.model),
 				DisplayName:     name,
 			}
@@ -195,6 +198,7 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 	f.StringVar(&opts.mode, "mode", "", "Initial session interface: chat (structured agent connection) or tui (the agent's native terminal). Omitted uses the daemon default; compatible sessions can switch later.")
 	f.StringVar(&opts.branch, "branch", "", "Branch for git project sessions (default: ao/<session-id>/root; unsupported for Scratch)")
 	f.StringVar(&opts.prompt, "prompt", "", "Initial prompt for the agent")
+	f.BoolVar(&opts.noPR, "no-pr", false, "Do not tell the worker to open a pull request. Use for ops or read-only tasks (serve a directory, inspect state, report on the environment); without it AO appends a completion contract that would contradict such a brief.")
 	f.StringVar(&opts.model, "model", "", "Agent model override for this session only (e.g. sonnet, gpt-5.6-sol); overrides project/role config without changing it")
 	f.StringVar(&opts.issue, "issue", "", "Issue id to associate with the session")
 	f.StringVar(&opts.trackerProvider, "tracker-provider", "github", "Issue tracker provider: github or gitlab (default: github)")

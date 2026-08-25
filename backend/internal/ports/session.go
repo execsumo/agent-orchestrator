@@ -47,6 +47,14 @@ type SpawnConfig struct {
 	// consume inline binary data). Any file type is accepted except for
 	// explicitly blocked types (e.g., SVG for security reasons).
 	Attachments []SpawnAttachment
+
+	// NoPR suppresses the completion contract AO otherwise appends to a worker
+	// task prompt (see session.withCompletionContract). Set it for delegations
+	// that are genuinely not code changes — serving a directory, inspecting
+	// state, reporting on the environment — where instructing the worker to
+	// open a pull request contradicts the brief it was given. It has no effect
+	// on a promptless spawn or on an orchestrator.
+	NoPR bool
 }
 
 // SpawnAttachment is a single file attached to a spawn request. Data holds the

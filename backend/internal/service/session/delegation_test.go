@@ -382,3 +382,38 @@ func TestSpawnDoesNotDuplicateCompletionContract(t *testing.T) {
 		t.Fatalf("spawn prompt = %q, want the contract appended exactly once", fc.spawnedCfg.Prompt)
 	}
 }
+
+// The opt-out exists because appending the contract to an ops brief produced a
+// prompt that contradicted itself in its last two sentences — observed live on
+// a delegation whose brief said "Do not commit, push, or open a PR."
+func TestSpawnNoPRSuppressesCompletionContract(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
+	fc := &fakeCommander{}
+	svc := NewWithDeps(Deps{Manager: fc, Store: st})
+
+	brief := "Serve the repo on 8766 and report the URL. Do not commit, push, or open a PR."
+	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Prompt: brief, NoPR: true}); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	if fc.spawnedCfg.Prompt != brief {
+		t.Fatalf("spawn prompt = %q, want the brief unchanged", fc.spawnedCfg.Prompt)
+	}
+}
+
+// NoPR is an opt-out, not a default: omitting it must keep the contract, or the
+// two-path fix silently regresses.
+func TestSpawnWithoutNoPRKeepsCompletionContract(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
+	fc := &fakeCommander{}
+	svc := NewWithDeps(Deps{Manager: fc, Store: st})
+
+	brief := "Decode IPv6 listener addresses in discover_services.py"
+	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Prompt: brief}); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	if fc.spawnedCfg.Prompt != brief+delegatedPromptFooter {
+		t.Fatalf("spawn prompt = %q, want the contract appended", fc.spawnedCfg.Prompt)
+	}
+}

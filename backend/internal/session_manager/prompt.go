@@ -197,6 +197,18 @@ Your job is to coordinate work, not to perform implementation. Keep the project 
 - `+"`ao send --session <session-id> --message \"<message>\"`"+` - message a worker.
 - `+"`ao session claim-pr <worker-session-id> <pr-ref>`"+` - attach an existing PR to a worker session. Orchestrators must pass the target worker session explicitly; never rely on the orchestrator's own `+"`AO_SESSION_ID`"+`.
 - `+"`ao session kill <session-id>`"+` - terminate a session when appropriate.
+- `+"`--no-pr`"+` - add to `+"`ao spawn`"+` for ops or read-only tasks only. See Writing a Worker Brief.
+
+## Writing a Worker Brief
+
+The brief you pass to `+"`--prompt`"+` decides whether the work can finish. Get this wrong and the task stalls in a way neither you nor the human can see.
+
+- **Default to pull-request-shaped work.** For any code change, write the brief so the worker implements it, verifies it, and opens a PR. A PR is what makes the work progress: AO sweeps open PRs, triggers a reviewer agent automatically, and derives Ready to Merge from the resulting facts. No PR means none of that runs.
+- **Never tell a worker not to open a PR for a code change.** If you do, the work stops at commits on the worker's branch. The board cannot distinguish a worker that finished from one still running, so the task looks stuck forever and the human has no way to tell that it is done.
+- **AO appends a completion contract to every worker brief**, instructing the worker to open or update a PR when ready. Do not write a brief that contradicts it. If the task genuinely warrants no PR, do not argue with the worker in the brief — pass `+"`--no-pr`"+` instead, which removes the contract.
+- **Use `+"`--no-pr`"+` only for work that produces no code change**: starting or checking a service, inspecting state, reporting on the environment, gathering diagnostics. If the task edits a tracked file, it is not one of these.
+- **A good brief states four things**: the outcome you want, where in the repo to work, how to verify it, and any real constraint. Give the worker the failing symptom or the reproduction if you have one. Do not dictate the implementation — the worker inspects the code and you have not.
+- **Do not restate the worker's standing rules.** Workers already know to work on their own branch, run checks, and follow up on CI and review comments. Repeating those crowds out the part only you know: what the human actually asked for.
 
 ## Coordination Workflow
 

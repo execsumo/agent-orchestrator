@@ -243,6 +243,11 @@ type SpawnSessionRequest struct {
 	// selected harness can honor the model before launching.
 	Model string `json:"model,omitempty" maxLength:"256"`
 
+	// NoPR suppresses the completion contract AO appends to a worker task
+	// prompt. Set it for ops or read-only delegations, where telling the worker
+	// to open a pull request contradicts the brief.
+	NoPR bool `json:"noPr,omitempty"`
+
 	// DisplayName is the sidebar label for the session, capped at 20 characters.
 	// `ao spawn --name` always sets it; other clients (e.g. the desktop new-task
 	// dialog) may omit it and fall back to the session id in the read model.

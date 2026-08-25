@@ -59,10 +59,20 @@ const delegatedPromptFooter = "\nImplement the requested change in this reposito
 // has no brief to complete. Orchestrator spawns are left alone; they delegate
 // rather than open PRs. A prompt already carrying the contract is not doubled,
 // which is what keeps an intake prompt from growing a second footer.
-func withCompletionContract(prompt string, kind domain.SessionKind) string {
+//
+// noPR is the caller's explicit opt-out, for delegations that are not code
+// changes at all. Appending the contract to those produced a prompt whose last
+// two sentences contradicted each other ("Do not commit, push, or open a PR."
+// followed by "…open or update a pull request when ready."), observed live on
+// an ops delegation. The opt-out is a flag rather than a scan of the brief for
+// refusal wording, because briefs phrase that a dozen ways and a missed phrase
+// fails silently.
+func withCompletionContract(prompt string, kind domain.SessionKind, noPR bool) string {
 	switch {
 	case strings.TrimSpace(prompt) == "":
 		return ""
+	case noPR:
+		return prompt
 	case kind != "" && kind != domain.KindWorker:
 		return prompt
 	case strings.Contains(prompt, delegatedPromptFooter):
@@ -86,7 +96,9 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 	if in.RequestedMode != "" && !in.RequestedMode.Valid() {
 		return DelegateTaskOutcome{}, apierr.Invalid("INVALID_SESSION_MODE", "mode must be chat or tui", nil)
 	}
-	prompt := withCompletionContract(in.Brief, domain.KindWorker)
+	// The task composer has no ops-task affordance, so its briefs always carry
+	// the contract; the opt-out is reachable from `ao spawn --no-pr`.
+	prompt := withCompletionContract(in.Brief, domain.KindWorker, false)
 
 	worker, _, _, err := s.manager.Spawn(ctx, ports.SpawnConfig{
 		ProjectID:     in.ProjectID,
