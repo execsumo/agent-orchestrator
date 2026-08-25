@@ -2078,11 +2078,38 @@ What remains:
   change** with **no PR prohibition in the brief**, then watch for the PR, the
   `autoreview` sweep (~1 min), the reviewer agent, and `ready_to_merge`.
 
-  **The pipeline has never run on this box — `select count(*) from pr` → `0`,
-  `review_run` → `0`, across all four projects, all time.** Not "broken":
-  never exercised. Any claim about lane progression here is therefore untested,
-  including the ones in the ticket-progression table below, which were read out
-  of the code rather than observed.
+  **✅ THE PIPELINE RAN END TO END, 2026-08-25 ~04:16 — first time ever on
+  this box.** Before this, `pr` and `review_run` were both empty across all
+  four projects, all time. Not "broken": never exercised. The run:
+
+  | Time | Fact |
+  | --- | --- |
+  | 04:16:19 | worker `vibeboxui-6` opens PR #1, `ao/vibeboxui-6/ipv6-formatting` → `master`; `turn_complete` fires |
+  | ~04:17 | `autoreview` sweeps the open PR |
+  | 04:18:01 | codex reviewer completes, `verdict = approved`, GitHub review `5014916684` |
+  | | board card reaches **Ready to Merge** (`mergeability = mergeable`) |
+
+  Under two minutes from the worker finishing to an approved review. **The
+  ticket-progression table below is now observed, not just read out of the
+  code.**
+
+  **What made it work was the brief, not the plumbing.** The task was written
+  by the human into the New-task composer — a real bug fix, no PR prohibition,
+  nothing about PRs at all. That is exactly the macOS shape. Every previously
+  stalled delegation was an orchestrator-authored brief that forbade or
+  bypassed a PR.
+
+  **⚠️ The board and the bell disagree, by design — know this before chasing
+  it.** No `ready_to_merge` notification fired for PR #1, only `turn_complete`.
+  `MergeReadiness.ReadyToMerge()` (`domain/pr.go:218`) treats `CIUnknown` as a
+  blocker — "AO only claims readiness it can actually prove" — and vibeboxUI
+  has no CI workflows, so `ci_state = unknown`. The board lane derives from the
+  looser session-status read model (`mergeability = mergeable` → `merge` zone),
+  so the card shows Ready to Merge while the notification rule refuses to. On a
+  repo with no CI the bell will never ring for readiness. Not a defect
+  introduced here; both rules are defensible; they are just not the same rule.
+  (`review_decision` also stayed `none` despite the approval — GitHub does not
+  count the repo owner's own review toward `reviewDecision`.)
 
 - **Prompt generation is platform-independent — checked 2026-08-25.** The
   operator recalled delegated tasks reaching Ready to Merge in the macOS app
