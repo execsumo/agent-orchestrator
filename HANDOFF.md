@@ -1939,14 +1939,29 @@ What remains:
     **Fix.** `withCompletionContract(prompt, kind)` in `delegation.go`, called
     from both `s.spawn` (after `withIssueContext`) and `DelegateTask`.
     Orchestrator spawns exempt, promptless stays promptless, no doubling on a
-    prompt that already carries it. Tests: `TestSpawnAppendsCompletionContract
-    ToWorkerPrompt` (explicit `worker` **and** empty kind — `ao spawn` sends
-    `""`), `TestSpawnLeavesOrchestratorPromptAlone`,
+    prompt that already carries it. Tests:
+    `TestSpawnAppendsCompletionContractToWorkerPrompt` (explicit `worker` **and**
+    empty kind — `ao spawn` sends `""`),
+    `TestSpawnLeavesOrchestratorPromptAlone`,
     `TestSpawnPromptlessWorkerStaysPromptless`,
     `TestSpawnDoesNotDuplicateCompletionContract`. `go vet` clean, full backend
     suite green except the known environmental `crush` failure.
     **Binary staged at `~/projects/agent-orchestrator-artifacts/ao.next`
     (built bundle-first per §11.9, placeholder restored) — NOT deployed.**
+
+    **Who else comes through the widened seam (checked, 2026-08-25).** The
+    append sits in `s.spawn`, so every caller of the session service's `Spawn`
+    inherits it. There are three, and none regress: the spawn controller
+    (`sessions.go:275`, the intended target); `trackerintake/observer.go:206`,
+    whose `BuildIssuePrompt` already ends with the identical footer
+    (`observer.go:288`, unconditional) so the dedupe guard absorbs it, including
+    the truncation branch which re-appends the footer after the notice; and
+    nothing else. **Reviewer agents do not come through here** — `autoreview`
+    contains no `Spawn` at all, and `review/review.go:379` goes through
+    `review.Launcher` with its own `LaunchSpec` type, never `ports.SpawnConfig`.
+    That was the regression to rule out: a reviewer told to open a PR. If a
+    future caller needs a worker spawn *without* the contract, gate on a new
+    `SpawnConfig` field rather than loosening the `Kind` check.
 
     **Confound — do not over-read the `vibeboxui-4` observation.** That brief
     told the worker to `merge --ff-only` and push `master` directly. Even with
