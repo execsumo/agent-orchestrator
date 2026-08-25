@@ -308,3 +308,77 @@ func TestDelegateTaskReturnsBeforeTitleRequestCompletes(t *testing.T) {
 func runInline(work func()) {
 	work()
 }
+
+// The `ao spawn --prompt` path is how an orchestrator agent delegates (its own
+// system prompt tells it to use that command), so it needs the same completion
+// contract the task composer's delegate endpoint applies. Without it an
+// orchestrated worker stops at commits on its ao/ branch and no PR is opened.
+func TestSpawnAppendsCompletionContractToWorkerPrompt(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		kind domain.SessionKind
+	}{
+		{name: "explicit worker kind", kind: domain.KindWorker},
+		{name: "kind omitted defaults to worker", kind: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			st := newFakeStore()
+			st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
+			fc := &fakeCommander{}
+			svc := NewWithDeps(Deps{Manager: fc, Store: st})
+
+			if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: tt.kind, Prompt: "Fast-forward master onto the worker branch"}); err != nil {
+				t.Fatalf("Spawn: %v", err)
+			}
+			want := "Fast-forward master onto the worker branch" + delegatedPromptFooter
+			if fc.spawnedCfg.Prompt != want {
+				t.Fatalf("spawn prompt = %q, want prompt plus completion contract", fc.spawnedCfg.Prompt)
+			}
+		})
+	}
+}
+
+func TestSpawnLeavesOrchestratorPromptAlone(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
+	fc := &fakeCommander{}
+	svc := NewWithDeps(Deps{Manager: fc, Store: st})
+
+	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindOrchestrator, Prompt: "coordinate this project"}); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	if fc.spawnedCfg.Prompt != "coordinate this project" {
+		t.Fatalf("orchestrator prompt = %q, want it unchanged; orchestrators delegate, they do not open PRs", fc.spawnedCfg.Prompt)
+	}
+}
+
+func TestSpawnPromptlessWorkerStaysPromptless(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
+	fc := &fakeCommander{}
+	svc := NewWithDeps(Deps{Manager: fc, Store: st})
+
+	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker}); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	if fc.spawnedCfg.Prompt != "" {
+		t.Fatalf("promptless spawn prompt = %q, want empty", fc.spawnedCfg.Prompt)
+	}
+}
+
+// An intake prompt already ends with the identical footer; appending a second
+// copy on the way through Spawn would be a visible prompt regression.
+func TestSpawnDoesNotDuplicateCompletionContract(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer"}
+	fc := &fakeCommander{}
+	svc := NewWithDeps(Deps{Manager: fc, Store: st})
+
+	prompt := "Implement issue #42" + delegatedPromptFooter
+	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Prompt: prompt}); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	if fc.spawnedCfg.Prompt != prompt {
+		t.Fatalf("spawn prompt = %q, want the contract appended exactly once", fc.spawnedCfg.Prompt)
+	}
+}

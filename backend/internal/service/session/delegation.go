@@ -40,12 +40,37 @@ type DelegateTaskOutcome struct {
 	WorkerID       domain.SessionID
 }
 
-// delegatedPromptFooter gives ad-hoc delegated workers the same completion
-// contract trackerintake appends to issue-intake prompts: without it a worker
-// that finishes its brief stops at commits on ao/<project>/<session>/root, no
-// PR is opened, and the auto-review pipeline never engages. Keep the text in
-// sync with trackerintake.intakePromptFooter.
+// delegatedPromptFooter gives delegated workers the same completion contract
+// trackerintake appends to issue-intake prompts: without it a worker that
+// finishes its brief stops at commits on ao/<project>/<session>/root, no PR is
+// opened, and the auto-review pipeline never engages. Keep the text in sync
+// with trackerintake.intakePromptFooter.
 const delegatedPromptFooter = "\nImplement the requested change in this repository, run the relevant checks, and open or update a pull request when ready."
+
+// withCompletionContract appends delegatedPromptFooter to a worker task
+// prompt. Both delegation paths funnel through here, because they are the same
+// act from the worker's point of view: `ao spawn --prompt` (POST
+// /api/v1/sessions), which is how an orchestrator agent delegates, and the
+// renderer's task composer (POST /api/v1/orchestrators/delegate), which is how
+// a human does. Appending on only one of them is what left orchestrated
+// workers idling on unmerged commits.
+//
+// Promptless spawns stay promptless — such a worker waits for instructions and
+// has no brief to complete. Orchestrator spawns are left alone; they delegate
+// rather than open PRs. A prompt already carrying the contract is not doubled,
+// which is what keeps an intake prompt from growing a second footer.
+func withCompletionContract(prompt string, kind domain.SessionKind) string {
+	switch {
+	case strings.TrimSpace(prompt) == "":
+		return ""
+	case kind != "" && kind != domain.KindWorker:
+		return prompt
+	case strings.Contains(prompt, delegatedPromptFooter):
+		return prompt
+	default:
+		return prompt + delegatedPromptFooter
+	}
+}
 
 // DelegateTask spawns the worker directly, matching `ao spawn`, with a
 // provisional display name derived from the task brief. AO then best-effort
@@ -61,15 +86,7 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 	if in.RequestedMode != "" && !in.RequestedMode.Valid() {
 		return DelegateTaskOutcome{}, apierr.Invalid("INVALID_SESSION_MODE", "mode must be chat or tui", nil)
 	}
-	prompt := in.Brief
-	switch {
-	case strings.TrimSpace(prompt) == "":
-		prompt = ""
-	case strings.Contains(prompt, delegatedPromptFooter):
-		// The brief already carries the completion contract; do not duplicate it.
-	default:
-		prompt += delegatedPromptFooter
-	}
+	prompt := withCompletionContract(in.Brief, domain.KindWorker)
 
 	worker, _, _, err := s.manager.Spawn(ctx, ports.SpawnConfig{
 		ProjectID:     in.ProjectID,
